@@ -1,0 +1,20 @@
+name: studio-infrastructure
+
+services:
+  smoke:
+    # Pulled and verified as linux/arm64 on the Mac Studio.
+    image: nginx@sha256:db35bfc6b2951e7f8a72db5db120288c127ffaeeb4a6d4b95a26fead017d5913
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:${SMOKE_PORT:-8088}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+    security_opt:
+      - no-new-privileges:true
