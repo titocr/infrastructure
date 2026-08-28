@@ -31,7 +31,7 @@ docker compose ps
 curl --fail --show-error http://127.0.0.1:8088/
 ```
 
-A successful HTTP response is necessary but not sufficient: `docker compose ps` must also report the service as healthy.
+A successful HTTP response is necessary but not sufficient: `docker compose ps` must also report `infrastructure-guide` as healthy.
 
 ## Stop and recover
 
@@ -59,7 +59,11 @@ Do not track mutable image tags during normal operation. To update a service:
 4. Run `docker compose config`, `docker compose up -d`, and the service health checks.
 5. Commit only after verification succeeds.
 
-Automatic updates are not enabled. The smoke service also carries an explicit opt-out label as defense in depth if an updater is introduced later.
+Automatic updates are not enabled. The Infrastructure Guide also carries an explicit opt-out label as defense in depth if an updater is introduced later.
+
+## Documentation portal
+
+The portal at `http://127.0.0.1:8088/` is a human-friendly index. Markdown under `docs/` is authoritative and should be linked directly when handing context to another Codex project. The container mounts both `portal/` and `docs/` read-only; changing documentation does not give the web server write access to the repository.
 
 ## Stateful services
 
