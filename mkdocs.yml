@@ -1,0 +1,21 @@
+site_name: Mac Studio Infrastructure Manual
+site_description: Local operating manual for containerized applications on the Mac Studio
+site_url: http://127.0.0.1:8088/
+theme:
+  name: readthedocs
+  highlightjs: true
+nav:
+  - Start here: index.md
+  - Concepts and responsibilities: concepts.md
+  - Host baseline and inventory: host-baseline.md
+  - Add an application: application-containerization.md
+  - GTD Mind worked example: projects/gtd-mind-containerization.md
+  - Routine operations: operations.md
+  - Runtime contract: runtime-contract.md
+  - Troubleshooting: troubleshooting.md
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+strict: true

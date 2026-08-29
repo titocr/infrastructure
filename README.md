@@ -2,7 +2,7 @@
 
 Repository-owned configuration and operating notes for containerized applications on the Mac Studio.
 
-OrbStack provides the Docker engine and Compose tooling. A local-only Nginx container serves the Mac Studio Infrastructure Guide and proves image pulls, bind mounts, networking, health checks, and restart behavior. It is not exposed to the LAN or internet.
+OrbStack provides the Docker engine and Compose tooling. A local-only container builds the Markdown manual with MkDocs and serves the generated site with Nginx. It is not exposed to the LAN or internet.
 
 ## Prerequisites
 
@@ -12,17 +12,13 @@ OrbStack provides the Docker engine and Compose tooling. A local-only Nginx cont
 
 ## Infrastructure Guide
 
-The guide is available on the Mac Studio at [http://127.0.0.1:8088/](http://127.0.0.1:8088/). Its reusable, agent-readable source documents are:
+The manual is available on the Mac Studio at [http://127.0.0.1:8088/](http://127.0.0.1:8088/). Its Markdown source is under [`docs/`](docs/index.md); `mkdocs.yml` defines the navigation.
 
-- [Application container onboarding](docs/application-containerization.md)
-- [GTD Mind containerization handoff](docs/projects/gtd-mind-containerization.md)
-
-Copy `.env.example` to `.env` only if you want to change the guide's default port. Then run:
+Copy `.env.example` to `.env` only to change the default port. Build and start it with:
 
 ```sh
 docker compose config
-docker compose pull
-docker compose up -d
+docker compose up --build -d
 docker compose ps
 curl --fail --show-error http://127.0.0.1:8088/
 ```
@@ -33,7 +29,7 @@ Stop the service without deleting its Compose definition:
 docker compose down
 ```
 
-See [docs/operations.md](docs/operations.md) for routine operation and recovery notes.
+See [Routine operations](docs/operations.md) for updates, verification, recovery, and troubleshooting.
 
 ## Conventions
 

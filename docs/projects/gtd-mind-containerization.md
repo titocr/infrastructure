@@ -1,56 +1,68 @@
-# GTD Mind containerization handoff
+# GTD Mind worked example
 
-Updated: 2026-08-28
+This is the concrete handoff for GTD Mind. The Codex **project** is named `gtd-ai`; GTD Mind is the **product**. Create a focused task inside `gtd-ai` rather than looking for a separate “GTD Mind project.”
 
-Read [Application container onboarding](../application-containerization.md) first. This document adds GTD Mind-specific constraints. It is a migration brief, not permission to change the live service.
+## Verified current deployment
 
-## Known deployment to revalidate
+Last verified: **2026-08-28**.
 
-The latest known GTD Mind production shape is more than an Angular application:
+| Item | Current value |
+| --- | --- |
+| Application repository | `/Users/titocr/code/gtd-ai` |
+| Process manager | macOS LaunchAgent `com.titocr.gtd-ai` |
+| Listener | `127.0.0.1:3000` |
+| Health | `http://127.0.0.1:3000/api/health` |
+| Authentication mode | Tailscale identity |
+| Private URL | `https://titos-mac-studio.tailb98869.ts.net` |
+| Private routing | Tailscale Serve proxies `/` to `http://127.0.0.1:3000` |
+| Persistent database | `/Users/titocr/Library/Application Support/GTD AI/state/gtd-ai.sqlite` |
+| Release root | `/Users/titocr/Library/Application Support/GTD AI` |
+| Native release command | `npm run release:deploy` |
 
-- An Angular web application and Node server are packaged together for the private Mac Studio release.
-- The server owns API routes, including `/api/health` and authenticated session behavior.
-- SQLite state, protected configuration, logs, backups, and immutable release directories live under `~/Library/Application Support/GTD AI` outside the Git checkout.
-- A LaunchAgent supervises the Node process on loopback port `3000`.
-- Host-side Tailscale Serve proxies the private HTTPS name to `http://127.0.0.1:3000`.
-- Tailscale identity headers are trusted only because the backend remains loopback-only.
-- `npm run release:deploy` currently guards clean-source packaging, SQLite backup and integrity checks, migrations, health verification, release switching, and code rollback.
+The existing deployment includes guarded backup, SQLite integrity, health, migration, and rollback behavior. The container design must preserve or deliberately replace those safeguards; it must not silently bypass them.
 
-The GTD Mind project must revalidate all of these facts against its current code, documentation, runtime, Tailscale state, and data layout before designing the container.
+## 1. Create the application task
 
-## Migration intent
+Open `gtd-ai` and create a task named **Containerize GTD Mind**. Start it in a worktree. Paste:
 
-Containerize the coherent production runtime, not merely the Angular frontend. The project must decide whether the web build and Node API belong in one image or whether there is a well-supported reason for multiple services. Do not introduce a reverse proxy or database server solely because containers are being adopted.
+```text
+Containerize GTD Mind in the gtd-ai repository. Read AGENTS.md, tasks/current.md, README.md, docs/operations/private-release.md, package manifests, server startup, web build, database code and migrations, authentication code, and health checks before proposing changes. Inspect actual code and tests; do not rely on this prompt for details that the repository can verify.
 
-The first container milestone is a parallel candidate. It must not replace the LaunchAgent, bind host port `3000`, change Tailscale Serve, or open the production SQLite database.
+The current production service is a LaunchAgent on 127.0.0.1:3000, reached through Tailscale Serve. Its SQLite database and release files are under /Users/titocr/Library/Application Support/GTD AI. Do not stop or modify that service, change port 3000, change Tailscale Serve, run against the production database, or modify production backups.
 
-## Required application-project work
+First present a container design and risk review. Then, after resolving any necessary questions, implement the smallest coherent application-owned change: a production multi-stage Dockerfile for linux/arm64, a minimal build context, production startup with the built Angular client and Node server, a meaningful /api/health check, graceful shutdown, and local candidate verification using separate temporary data and a non-production port. Preserve the current authentication trust boundary or explain precisely what must change.
 
-1. Trace the Angular build, server startup, static-asset serving, API routes, environment loading, SQLite path, migrations, session handling, and shutdown behavior.
-2. Review the current guarded release path and preserve its safety properties in the proposed container workflow.
-3. Add application-owned container artifacts only after that review.
-4. Build natively for `linux/arm64`; do not rely on Rosetta for the production image.
-5. Keep protected configuration and database contents out of the image.
-6. Specify the container user and prove it can read and write the proposed SQLite bind mount without broad permissions.
-7. Preserve `/api/health` or document a better readiness endpoint with an exact expected response.
-8. Return the completed runtime contract from the general onboarding guide.
+Create docs/container-runtime-contract.md. It must document the build command, internal port, startup command, all environment variables, secret inputs, persistent container paths, SQLite migration behavior, health check, shutdown behavior, candidate test procedure, resource observations, and rollback constraints. State which existing npm release safeguards remain application-owned and how container operation must provide equivalent backup, integrity, migration, health, and rollback protection.
 
-## Parallel validation boundary
+Run the relevant application tests plus an end-to-end container build/start/health/restart/persistence check. Commit only the focused application changes. Return the commit, exact results, remaining risks, and runtime-contract path. Stop without altering production.
+```
 
-- Use an unused loopback host port selected by the infrastructure project; production port `3000` remains untouched.
-- Use a separate candidate data directory under `/Users/titocr/container-data/gtd-mind-candidate`.
-- If representative data is required, create it through the existing guarded SQLite backup process and restore a copy. Never mount the live database into the candidate.
-- Keep Tailscale Serve pointed at the current native release during validation.
-- Verify migrations, persistence, backup, restore, health, authenticated owner behavior, graceful stop, and recovery after OrbStack restarts.
-- Treat cutover, Tailscale route change, LaunchAgent retirement, and legacy release cleanup as later explicit steps.
+Alternatively, from this infrastructure task say:
 
-## GTD Mind project request
+```text
+Create a new “Containerize GTD Mind” task in the gtd-ai project, include the complete infrastructure handoff in its initial message, and start it in a worktree. Do not let it alter the live deployment.
+```
 
-> Review the repository before implementing containerization. GTD Mind is currently believed to be an Angular web application plus a Node API/server with SQLite state, guarded migrations and backups, loopback binding, LaunchAgent supervision, and owner-only host-side Tailscale Serve. Revalidate that entire topology from current code and runtime evidence.
->
-> Propose the smallest coherent production image for native `linux/arm64`. Preserve the safety properties of the existing `npm run release:deploy` flow: clean committed inputs, protected configuration, SQLite backup and integrity checks, migration review, health verification, and recoverable rollback. The application repository owns its Dockerfile, `.dockerignore`, image build, startup and shutdown behavior, health endpoint, tests, and completed runtime contract. `/Users/titocr/code/infrastructure` will own the Mac Studio Compose stack, host paths, secrets, loopback host port, pinned digest, backup operations, and cutover.
->
-> Do not alter the live LaunchAgent, port `3000`, Tailscale Serve configuration, or production data. Build and test a parallel candidate only. Use a production Angular build rather than `ng serve`, run natively on `linux/arm64`, avoid embedding secrets or state, and run as non-root where practical. Prove the proposed container user can safely use the SQLite mount.
->
-> Run the repository's normal checks, production build, native image build, fresh container startup, `/api/health`, representative API and browser behavior, persistence, graceful stop, and clean Git checks. Finish with the completed runtime contract and a self-contained infrastructure handoff. Identify any backup, migration, restore, authentication, or rollback gaps that must be resolved before parallel deployment.
+## 2. Bring the result back here
 
+After the `gtd-ai` task commits its work, use this prompt in `infrastructure`:
+
+```text
+Prepare a GTD Mind candidate from /Users/titocr/code/gtd-ai at commit [COMMIT]. Read /Users/titocr/code/gtd-ai/docs/container-runtime-contract.md and verify it against the application files. Inspect the current LaunchAgent, port 3000, Tailscale Serve route, production paths, backups, and Docker services before changing anything.
+
+Add an isolated Compose candidate using a free 127.0.0.1 port and a separate path under /Users/titocr/container-data/gtd-mind-candidate. Do not read or write the production SQLite database, stop the LaunchAgent, or change Tailscale. Add secret delivery, health, restart, backup/restore, and rollback procedures. Test build, health, real application behavior, restart, and persistence. Record the measured result and commit the focused infrastructure changes. Stop before cutover.
+```
+
+## 3. Production decision
+
+Migration is complete only after:
+
+- an application-aware backup and restore has been exercised;
+- database migration compatibility with rollback is known;
+- Tailscale identity headers and owner-only access work end to end;
+- the same private URL can be redirected deliberately;
+- candidate restart and host restart behavior are acceptable;
+- the old LaunchAgent can be restored with a documented command; and
+- the human operator approves the exact cutover plan.
+
+Do not remove the native release tree, LaunchAgent definition, or last compatible database backup during initial cutover.

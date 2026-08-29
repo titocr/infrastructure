@@ -1,124 +1,84 @@
-# Application container onboarding
+# Add an application
 
-Updated: 2026-08-28
+This procedure takes an application from “works in its repository” to “operated safely on this Mac Studio.” Complete the stages in order. The first stage changes only the application repository; later stages change this infrastructure repository and host runtime.
 
-Use this document when preparing any application repository for deployment as containers on the Mac Studio. The application repository owns the image; this infrastructure repository owns how the image runs on this host.
+## 1. Start a focused application task
 
-## Mac Studio host contract
+Open the application's existing Codex project and create a new task. If it is a Git repository, use a worktree or task-specific branch for nontrivial work.
 
-- Target platform: Apple Silicon, `linux/arm64`.
-- Runtime: OrbStack 2.2.3, Docker Engine 29.4.0, Docker Compose 5.1.2.
-- Kubernetes is not enabled.
-- OrbStack starts at macOS login.
-- OrbStack's global Docker LAN exposure is disabled.
-- Published ports bind to `127.0.0.1` unless broader access is explicitly reviewed and documented.
-- Runtime images are pinned to a tested repository digest.
-- Image updates are reviewed and applied deliberately; unattended container replacement is disabled.
-- Secrets stay out of Git and out of image layers.
-- Host-managed persistent data belongs under `/Users/titocr/container-data/<service>`.
-- Existing production deployments remain intact until a parallel container candidate passes verification and has an explicit rollback plan.
-
-Revalidate versions and available capacity before relying on this snapshot for a future deployment.
-
-## Ownership boundary
-
-### Application repository owns
-
-- `Dockerfile` or Dockerfiles and `.dockerignore`.
-- Production compilation and runtime entry point.
-- Base-image selection and supported architecture.
-- Container-internal port and meaningful health endpoint.
-- Environment-variable, secret, volume, and migration contract.
-- Graceful shutdown behavior.
-- Application tests and container build verification.
-- Documentation sufficient for an operator to build and run the image without reading implementation code.
-
-### Infrastructure repository owns
-
-- Mac Studio Compose definitions and project naming.
-- Loopback host-port assignment and any Tailscale Serve integration.
-- Production environment and secret injection.
-- Host bind-mount paths and directory preparation.
-- Tested image digest.
-- Backup, restore, update, rollback, and health-check operations.
-- Parallel deployment, cutover, and removal of superseded host services.
-
-Do not maintain competing production Compose definitions in both repositories. An application repository may include a development-only Compose file, but it must be clearly labeled and must not claim ownership of Mac Studio paths or secrets.
-
-## Runtime contract template
-
-The application project must return a completed version of this contract:
+Paste this prompt, replacing bracketed names:
 
 ```text
-Application:
-Image name:
-Supported architecture:
-Build command:
-Container startup command:
-Container port:
-Health endpoint:
-Expected healthy response:
-Environment variables:
-Secrets:
-Persistent mounts:
-Container user and file ownership:
-Migration command and ordering:
-Backup and restore requirements:
-Graceful shutdown expectations:
-Verification commands:
-Known rollback constraints:
+Containerize [PRODUCT NAME] in this application repository. First inspect the repository instructions, current deployment documentation, build, runtime, data, authentication, health checks, and tests. Do not alter the live deployment.
+
+Implement the smallest coherent application-owned containerization change: a production Dockerfile, a complete and minimal build context, an unprivileged runtime where practical, a meaningful health endpoint or command, and local build/run verification. Do not place host-specific ports, secrets, production data paths, Tailscale configuration, or Mac launch configuration in this repository.
+
+Create docs/container-runtime-contract.md using the infrastructure manual's runtime-contract format. It must specify the image build command, architecture, internal port, startup command, environment variables with secrets marked, persistent container paths, migration behavior, health check, shutdown behavior, expected resource needs, candidate test procedure, and rollback considerations.
+
+Before implementation, report the proposed design, risks, and exact production boundaries. Stop for my approval if data migration, authentication, exposure, or the existing production service could be affected. After implementation, run appropriate tests and commit the focused change. Give me the commit, verification results, unresolved issues, and the path to the runtime contract.
 ```
 
-Unknown items must be called out rather than silently omitted.
+## 2. Review the application result
 
-## Application review checklist
+Confirm that:
 
-Before writing a Dockerfile, inspect the real production topology:
+- the ordinary application test suite still passes;
+- the image builds for `linux/arm64` or a compatible multi-platform target;
+- the container starts without the source tree mounted into it;
+- a health check proves application readiness, not merely that a process exists;
+- every durable file is named in the runtime contract;
+- secrets are inputs and do not appear in the image, Compose file, logs, or Git;
+- termination is graceful and documented;
+- database migrations are explicit and rollback limitations are stated; and
+- the live service and production data were untouched.
 
-- Is it a static web application, or does production also require a server, API, database, worker, scheduler, or migration process?
-- Does one image contain the coherent runtime, or are multiple services required?
-- Can it build and run natively on `linux/arm64`?
-- Which process should serve built frontend assets? A development server is not a production runtime.
-- Which files must persist across container replacement?
-- Which configuration values are secrets, and when are they read?
-- What proves readiness beyond a process merely listening on a port?
-- What happens on `SIGTERM`, and how long may graceful shutdown take?
-- Can the image run as a non-root user without breaking bind-mounted data?
-- Do schema migrations preserve rollback compatibility?
+If anything is missing, reply in the application task. That task should revise its own implementation and contract.
 
-## Delivery sequence
+## 3. Hand the contract to infrastructure
 
-1. Review the application and propose the smallest coherent containerization slice.
-2. Add and test application-owned image artifacts without changing the live deployment.
-3. Return the completed runtime contract.
-4. Add the host Compose stack, secrets, data paths, and runbook in this repository.
-5. Start the candidate on a separate loopback port with non-production or safely copied data.
-6. Verify health, representative application behavior, restart recovery, backup, restore, and rollback.
-7. Cut over host routing only after the candidate passes and the prior deployment remains recoverable.
-8. Remove the superseded deployment in a separate, explicit cleanup step.
+Return to a task in the `infrastructure` project. Paste:
 
-## Verification standard
+```text
+Prepare an isolated candidate deployment for [PRODUCT NAME]. Read this infrastructure manual, inspect current host state, and read the application runtime contract at [ABSOLUTE PATH]. Verify the referenced application commit exists. Propose the smallest coherent infrastructure change before implementing it.
 
-At minimum, record evidence for:
+The candidate must use a free loopback-only port and separate non-production data. It must not alter the live listener, production data, Tailscale routing, login service, or existing backups. Add a health check, restart policy, secret-delivery plan, backup/restore procedure, resource observations, and rollback instructions. Build and exercise the candidate end to end, update the service inventory, and commit the focused infrastructure change. Stop before production cutover.
+```
 
-- Normal repository formatting, linting, type checking, tests, and production build.
-- A native `linux/arm64` image build.
-- Clean container startup from a newly created instance.
-- Health endpoint success and representative application behavior.
-- Secrets absent from the image history and committed files.
-- Graceful stop and automatic recovery after an OrbStack restart.
-- Correct persistence across container replacement.
-- A successful backup and restore rehearsal for stateful services.
-- Loopback-only reachability unless another exposure boundary was approved.
-- Clean Git state in both repositories after the deployment.
+The infrastructure task should record the application repository and commit, image identity, candidate port, data path, exact verification, and cleanup procedure.
 
-## Reusable request for an application project
+## 4. Evaluate the candidate
 
-> Review this repository's actual runtime architecture before making changes. The target is a Mac Studio running OrbStack on Apple Silicon, so production images must run natively on `linux/arm64`.
->
-> Start with a review, revision, and planning step. Determine the complete production topology and propose the smallest coherent containerization change. The application repository owns its Dockerfile, `.dockerignore`, production image, startup command, health endpoint, tests, and runtime contract. A separate infrastructure repository owns host-specific Compose configuration, paths, secrets, loopback ports, image digests, backups, and cutover.
->
-> Use a production runtime rather than a development server. Pin base-image versions, keep secrets out of image layers, run as non-root where practical, document persistent state and migrations, and preserve graceful shutdown. Keep the existing deployment intact while testing the container candidate in parallel. Do not change live routing or production data during the application-containerization task.
->
-> Verify the normal repository checks, production build, native `linux/arm64` image build, fresh container startup, health endpoint, representative behavior, and graceful stop. Finish with the completed runtime contract from the Mac Studio infrastructure guide, plus remaining host-integration and cutover work.
+Use the application through the candidate endpoint, not only a health URL. Test an important user flow, restart the container, and verify that data survives. If the application receives authentication information from a proxy, test that boundary explicitly.
 
+Before approving production, answer:
+
+1. Is the backup current, readable, and restorable?
+2. Is the candidate using a copy rather than the only production data?
+3. Are migrations reversible, forward-only, or safely compatible with rollback?
+4. What exact procedure restores the old service?
+5. How much downtime should be expected?
+6. Will the public or private URL stay the same?
+
+## 5. Authorize cutover separately
+
+Only after accepting the candidate, paste:
+
+```text
+I approve planning the production cutover for [PRODUCT NAME]. Re-inspect the live service and candidate, confirm a fresh backup and tested rollback, and present the exact ordered cutover plan with expected downtime and approval boundaries. Do not execute the cutover until I explicitly approve that exact plan.
+```
+
+After reviewing the plan, authorize execution unambiguously. Retain the old deployment and backup until the new service passes health, restart, persistence, authentication, and real user-flow checks.
+
+## 6. Clean up later
+
+Cleanup is a separate destructive decision. Ask for an inventory of old launch configuration, releases, images, containers, and data first. Preserve at least one known-good rollback artifact and follow the relevant retention policy.
+
+## Optional task coordination
+
+Instead of manually moving the contract, you can ask the infrastructure task:
+
+```text
+Create a new “[ACTION]” task in the [PROJECT] project, include the complete handoff in its initial message, and start it in a worktree. Do not let it alter the live deployment. Tell me the task name and wait for its result.
+```
+
+The new task remains visible and user-owned. Repository files and commit references—not the cross-task message—remain the recovery record.

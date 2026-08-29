@@ -1,78 +1,84 @@
-# Operations
+# Routine operations
 
-## Runtime
+Run commands from `/Users/titocr/code/infrastructure` unless a section says otherwise.
 
-OrbStack supplies the Docker engine, Docker CLI, and Docker Compose. It should start at macOS login so services using `restart: unless-stopped` return with the runtime.
-
-The initial Mac Studio bootstrap installed OrbStack with Homebrew and set these host-level defaults:
+## Read current state
 
 ```sh
-orb config set app.start_at_login true
-orb config set docker.expose_ports_to_lan false
-```
-
-OrbStack placed its CLI tools under `~/.orbstack/bin`, which was not on the existing shell `PATH`. The `docker` and `docker-credential-osxkeychain` tools are therefore linked into `/opt/homebrew/bin`. `orb doctor` may continue to recommend adding the whole OrbStack directory to `PATH` for optional tools such as `kubectl`; Kubernetes is not enabled for this project.
-
-Check the runtime before changing a stack:
-
-```sh
-orb status
-docker context show
-docker info
+git status --short
 docker compose config
+docker compose ps
+docker compose images
 ```
 
-## Start and verify
+The Git worktree should be clean during ordinary operation. A dirty tree means configuration or documentation may not match the recorded revision.
+
+## Build and update this manual
+
+Edit the Markdown under `docs/`, then run:
 
 ```sh
-docker compose pull
-docker compose up -d
+docker compose build infrastructure-guide
+docker compose up -d infrastructure-guide
 docker compose ps
 curl --fail --show-error http://127.0.0.1:8088/
 ```
 
-A successful HTTP response is necessary but not sufficient: `docker compose ps` must also report `infrastructure-guide` as healthy.
+The build runs `mkdocs build --strict`; broken internal links, invalid navigation, or documentation warnings fail the image build. Commit the source, not generated HTML.
 
-## Stop and recover
+## Logs, restart, and recovery
 
-Stop this stack:
+```sh
+docker compose logs --tail=100 infrastructure-guide
+docker compose restart infrastructure-guide
+docker compose ps
+curl --fail --show-error http://127.0.0.1:8088/
+```
+
+The service uses `restart: unless-stopped`. OrbStack is configured to start at login. After a host restart, confirm OrbStack is running and repeat the state and health checks.
+
+Stop and start without removing the service:
+
+```sh
+docker compose stop infrastructure-guide
+docker compose start infrastructure-guide
+```
+
+Remove only the running Compose resources, while retaining source and the local image:
 
 ```sh
 docker compose down
 ```
 
-If the Docker engine is unavailable, start OrbStack and wait for `docker info` to succeed before bringing the stack up again:
+Recreate them with `docker compose up -d`.
 
-```sh
-orb start
-docker info
-docker compose up -d
-```
+## Safe image updates
 
-## Image updates
+Base images are digest-pinned in `Dockerfile.guide`, and MkDocs is version-pinned in `requirements-docs.txt`. To update:
 
-Do not track mutable image tags during normal operation. To update a service:
+1. Identify the intended upstream release and digest.
+2. Change one dependency deliberately.
+3. Rebuild and verify health, navigation, logs, and restart.
+4. Review and commit the exact source change.
 
-1. Review the upstream release notes and architecture support.
-2. Pull the intended image and resolve its repository digest.
-3. Change the digest in `compose.yaml`.
-4. Run `docker compose config`, `docker compose up -d`, and the service health checks.
-5. Commit only after verification succeeds.
+Do not use an unattended updater for this service. Its Watchtower label is intentionally disabled.
 
-Automatic updates are not enabled. The Infrastructure Guide also carries an explicit opt-out label as defense in depth if an updater is introduced later.
+## Operating an application service
 
-## Documentation portal
+Every added application needs a short runbook containing:
 
-The portal at `http://127.0.0.1:8088/` is a human-friendly index. Markdown under `docs/` is authoritative and should be linked directly when handing context to another Codex project. The container mounts both `portal/` and `docs/` read-only; changing documentation does not give the web server write access to the repository.
+- source repository and tested commit;
+- Compose service and image identity;
+- local health and user endpoint;
+- persistent host and container paths;
+- secret source without secret values;
+- backup command, resulting artifact, integrity check, and restore test;
+- start, stop, restart, update, and log commands;
+- exposure route and authentication boundary;
+- migration gate;
+- rollback trigger and exact procedure; and
+- last verification date.
 
-## Stateful services
+Before an update, confirm a clean infrastructure repository, current backup, free disk space, current health, and a known rollback image/configuration. Afterward, check application health, a real user flow, logs, restart, persistence, and Git cleanliness.
 
-Before adding a stateful service, document:
-
-- Its bind mounts or named volumes.
-- Backup contents, frequency, and destination.
-- A tested restore procedure.
-- Upgrade and rollback steps.
-- Local, tailnet, or public network exposure.
-
-Use `/Users/titocr/container-data/<service>` for host-managed persistent data. Confirm backup access before stopping a service for maintenance.
+Documentation is part of the operation. Update the inventory, runtime contract reference, verification date, and changed commands in the same commit as the service definition.
