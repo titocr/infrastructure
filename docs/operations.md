@@ -13,6 +13,8 @@ docker compose images
 
 The Git worktree should be clean during ordinary operation. A dirty tree means configuration or documentation may not match the recorded revision.
 
+Repository hygiene monitoring is separate from application health monitoring, backups, and CI. See [Repository hygiene monitoring](repository-monitoring.md) for its Studio-local Git checks and Discord alerts.
+
 ## Build and update this manual
 
 Edit the Markdown under `docs/`, then run:
