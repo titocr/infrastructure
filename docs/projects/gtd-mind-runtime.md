@@ -22,7 +22,10 @@ LaunchAgent had only been unloaded for the current login session. OrbStack then 
 doctor`, reported `app.start_at_login: true`, and restarted the production container. The native
 job was persistently disabled, the container was restarted to reclaim port 3000, and health,
 local-owner authentication, UI, SQLite integrity, record count, and a fresh Todoist poll passed.
-A second reboot is still required to prove that the corrected path is fully unattended.
+A second reboot then proved the corrected path unattended: OrbStack launched 27 seconds after the
+boot timestamp and the container started six seconds later. The legacy job remained disabled and
+unloaded; container health, local-owner authentication, UI, SQLite integrity and all 140 records
+passed, followed by a successful post-boot Todoist poll.
 
 ## Tested candidate
 
