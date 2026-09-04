@@ -1,0 +1,60 @@
+name: gtd-mind
+
+x-gtd-mind-common: &gtd-mind-common
+  image: ${GTD_MIND_IMAGE:?Set GTD_MIND_IMAGE to a tested revision tag}
+  init: true
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:size=16m,mode=1777
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  stop_grace_period: 15s
+  healthcheck:
+    test:
+      - CMD
+      - node
+      - -e
+      - >-
+        fetch('http://127.0.0.1:3000/api/health/ready').then(async response => {
+        const body = await response.json(); if (!response.ok || body.status !== 'ready' ||
+        body.checks?.database !== 'ok') process.exit(1); }).catch(() => process.exit(1))
+    interval: 10s
+    timeout: 3s
+    retries: 5
+    start_period: 10s
+  labels:
+    com.centurylinklabs.watchtower.enable: "false"
+
+services:
+  candidate:
+    <<: *gtd-mind-common
+    profiles: [candidate]
+    ports:
+      - "127.0.0.1:${GTD_MIND_CANDIDATE_PORT:-3100}:3000"
+    environment:
+      AUTH_MODE: local
+      APP_ORIGIN: http://127.0.0.1:${GTD_MIND_CANDIDATE_PORT:-3100}
+      APP_TIME_ZONE: America/Los_Angeles
+      OWNER_ACTOR_ID: owner
+    volumes:
+      - ${GTD_MIND_CANDIDATE_DATA_ROOT:-/private/tmp/gtd-mind-candidate-unused}:/data
+
+  production:
+    <<: *gtd-mind-common
+    profiles: [production]
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - ${GTD_MIND_PRODUCTION_ENV_FILE:-/dev/null}
+    environment:
+      AUTH_MODE: local
+      APP_ORIGIN: http://127.0.0.1:3000
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_PATH: /data/gtd-ai.sqlite
+      WEB_ROOT: /app/apps/web/browser
+    volumes:
+      - ${GTD_MIND_PRODUCTION_DATA_ROOT:-/Users/titocr/container-data/gtd-mind/state}:/data

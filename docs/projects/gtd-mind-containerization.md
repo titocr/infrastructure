@@ -4,24 +4,28 @@ This is the concrete handoff for GTD Mind. The Codex **project** is named `gtd-a
 
 ## Verified current deployment
 
-Last verified: **2026-08-28**.
+Last verified: **2026-09-04**.
 
-| Item | Current value |
-| --- | --- |
-| Application repository | `/Users/titocr/code/gtd-ai` |
-| Process manager | macOS LaunchAgent `com.titocr.gtd-ai` |
-| Listener | `127.0.0.1:3000` |
-| Health | `http://127.0.0.1:3000/api/health` |
-| Authentication mode | Tailscale identity |
-| Private URL | `https://titos-mac-studio.tailb98869.ts.net` |
-| Private routing | Tailscale Serve proxies `/` to `http://127.0.0.1:3000` |
-| Persistent database | `/Users/titocr/Library/Application Support/GTD AI/state/gtd-ai.sqlite` |
-| Release root | `/Users/titocr/Library/Application Support/GTD AI` |
-| Native release command | `npm run release:deploy` |
+| Item                   | Current value                                               |
+| ---------------------- | ----------------------------------------------------------- |
+| Application repository | `/Users/titocr/code/gtd-ai`                                 |
+| Process manager        | OrbStack and Docker Compose                                 |
+| Listener               | `127.0.0.1:3000`                                            |
+| Health                 | `http://127.0.0.1:3000/api/health`                          |
+| Authentication mode    | Mac-local owner                                             |
+| Private URL            | None; Tailscale follow-up deferred                          |
+| Private routing        | None; Tailscale Serve disabled                              |
+| Persistent database    | `/Users/titocr/container-data/gtd-mind/state/gtd-ai.sqlite` |
+| Release                | `gtd-mind:edeee2ab870a`                                     |
+| Rollback               | Retained native LaunchAgent and database                    |
 
-The existing deployment includes guarded backup, SQLite integrity, health, migration, and rollback behavior. The container design must preserve or deliberately replace those safeguards; it must not silently bypass them.
+The container deployment preserves guarded backup, SQLite integrity, health, migration, and
+rollback behavior. The prior native deployment remains available for explicit rollback.
 
 ## 1. Create the application task
+
+Completed at application revision `edeee2ab870a1d6abc69440b2b98fb30a1f62d16`. The runtime
+contract is `docs/container-runtime-contract.md` in `gtd-ai`.
 
 Open `gtd-ai` and create a task named **Containerize GTD Mind**. Start it in a worktree. Paste:
 
@@ -45,6 +49,9 @@ Create a new “Containerize GTD Mind” task in the gtd-ai project, include the
 
 ## 2. Bring the result back here
 
+Completed. The isolated candidate and guarded automation are recorded in
+[GTD Mind container operations](gtd-mind-runtime.md).
+
 After the `gtd-ai` task commits its work, use this prompt in `infrastructure`:
 
 ```text
@@ -59,8 +66,8 @@ Migration is complete only after:
 
 - an application-aware backup and restore has been exercised;
 - database migration compatibility with rollback is known;
-- Tailscale identity headers and owner-only access work end to end;
-- the same private URL can be redirected deliberately;
+- Tailscale Serve is saved and deliberately disabled before local mode starts;
+- Mac-local owner access works at `http://127.0.0.1:3000`;
 - candidate restart and host restart behavior are acceptable;
 - the old LaunchAgent can be restored with a documented command; and
 - the human operator approves the exact cutover plan.

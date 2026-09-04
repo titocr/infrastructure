@@ -18,13 +18,13 @@ Use this manual to understand what is running, ask an application project to bec
 
 ## Current position
 
-Last verified: **2026-08-28**.
+Last verified: **2026-09-04**.
 
 - OrbStack supplies Docker and Compose and starts at login.
-- The infrastructure manual is the only container service currently managed by this repository.
-- It listens only on `127.0.0.1:8088`.
+- The infrastructure manual listens only on `127.0.0.1:8088`.
 - Docker ports are not exposed to the LAN by default.
-- GTD Mind is a live, private, native Node/LaunchAgent deployment. It has **not** been migrated to a container.
+- GTD Mind production runs as a Mac-local ARM64 container on `127.0.0.1:3000`. The former
+  LaunchAgent is retained but unloaded, and Tailscale Serve is deliberately disabled.
 - Containerizing an application begins in that application's repository. Production deployment and host integration are completed here only after review.
 
 ## Recommended path
@@ -36,4 +36,4 @@ Last verified: **2026-08-28**.
 5. Use [Routine operations](operations.md) after deployment.
 
 !!! warning
-    Do not point a candidate container at production data, replace a live listener, change Tailscale routing, or remove an old service until its backup, health, and rollback procedure have been tested.
+Do not point a candidate container at production data, replace a live listener, change Tailscale routing, or remove an old service until its backup, health, and rollback procedure have been tested.
