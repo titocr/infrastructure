@@ -14,6 +14,15 @@ LaunchAgent is unloaded, Tailscale Serve has no configuration, and the protected
 migration-state files have mode `0600`.
 
 The isolated candidate is stopped after successful cutover; its data and image remain available.
+Cutover disables the former LaunchAgent in the per-user launchd domain so it cannot race OrbStack
+for port 3000 after login. Rollback explicitly re-enables the job before starting it.
+
+The first post-cutover reboot prompted for one-time OrbStack setup and exposed that the former
+LaunchAgent had only been unloaded for the current login session. OrbStack then passed `orbctl
+doctor`, reported `app.start_at_login: true`, and restarted the production container. The native
+job was persistently disabled, the container was restarted to reclaim port 3000, and health,
+local-owner authentication, UI, SQLite integrity, record count, and a fresh Todoist poll passed.
+A second reboot is still required to prove that the corrected path is fully unattended.
 
 ## Tested candidate
 

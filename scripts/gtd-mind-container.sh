@@ -103,6 +103,7 @@ wait_listener_closed() {
 stop_native_service() {
   local domain="gui/$(id -u)"
   launchctl bootout "$domain" "$LAUNCH_AGENT" || launchctl unload -w "$LAUNCH_AGENT"
+  launchctl disable "$domain/com.titocr.gtd-ai"
   for attempt in 1 2 3 4 5; do
     if ! launchctl print "$domain/com.titocr.gtd-ai" >/dev/null 2>&1; then
       wait_listener_closed 3000
@@ -115,6 +116,7 @@ stop_native_service() {
 
 start_native_service() {
   local domain="gui/$(id -u)"
+  launchctl enable "$domain/com.titocr.gtd-ai"
   launchctl bootstrap "$domain" "$LAUNCH_AGENT" || launchctl load -w "$LAUNCH_AGENT" || true
   wait_ready http://127.0.0.1:3000/api/health/ready 30
   launchctl print "$domain/com.titocr.gtd-ai" | grep -q 'state = running'
