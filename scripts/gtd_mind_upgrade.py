@@ -227,7 +227,10 @@ class Upgrade:
         run('git', '-C', str(self.app), 'archive', '--output', str(archive), revision)
         context = directory / 'source'
         context.mkdir()
-        run('tar', '-xf', str(archive), '-C', str(context))
+        # The parent rehearsal directory is private, but image source files must
+        # retain Git's 0644/0755 modes for the runtime's non-root user. The
+        # deployment umask (0077) would otherwise make COPY produce root-only files.
+        run('tar', '-xpf', str(archive), '-C', str(context))
         tag = 'gtd-mind:' + revision[:12]
         print('Building exact application revision...', flush=True)
         run('docker', 'build', '--platform', 'linux/arm64', '--label',
