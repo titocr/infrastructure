@@ -1,6 +1,20 @@
 # GTD Mind owner-only remote access
 
-Implementation in progress; public ingress has not been activated or verified.
+Live and verified on 2026-09-06 at `https://gtd.purpletardis.xyz`.
+Application revision `85d3214` passed guarded deployment; both containers run in
+OrbStack. A real owner JWT received HTTP 200 for the public session and UI;
+unauthenticated UI, session, inbox, and sync-health requests redirect to Access.
+Direct loopback requests without a JWT receive HTTP 401. Responses use no-store.
+App and connector restart recovery passed. The owner confirmed browser and
+cellular access with Wi-Fi and Tailscale disabled.
+
+Deployment record:
+`/Users/titocr/container-data/gtd-mind/deployments/20260906T211541Z-6f324d69/record.json`.
+The guarded release verified database integrity, schema preservation, restoration
+on a private copy, owner session, UI, and a fresh successful Todoist poll. The
+previous image/configuration and pre-upgrade backup are retained for recovery.
+Session expiry and retained-edit behavior have automated coverage; actual
+seven-day expiration has not yet elapsed.
 
 Verified setup on 2026-09-06: the .xyz registry delegates to
 `asa.ns.cloudflare.com` and `eric.ns.cloudflare.com`; Cloudflare reports the
@@ -16,7 +30,7 @@ is one week and global duration inherits the application. Application ID:
 These identifiers are public configuration, not credentials.
 
 The `gtd-mind-studio` tunnel (`1b957aa3-2bce-4b3c-8ca2-b6ea0d667b63`)
-has no running connector yet. Its published route points the GTD hostname to
+has a running connector. Its published route points the GTD hostname to
 `http://production:3000`, requires the GTD Mind Access audience, and has a
 default `http_status:404` route. A hostname-specific cache bypass is active.
 An unauthenticated public request returns the Access login redirect.
@@ -31,6 +45,8 @@ Deployment validation: 16 upgrade unit tests, three connector origin guard tests
 and a real isolated Docker upgrade/failed-verification rollback rehearsal pass.
 The live test closes host SQLite connections before container lifecycle changes;
 a transaction context alone does not close a Python SQLite connection.
+The release archive extraction preserves Git file modes inside a private parent
+directory, so the non-root image can read copied package manifests.
 
 The intended hostname is `gtd.purpletardis.xyz`, protected by Cloudflare Access
 email PIN restricted to the owner, with seven-day sessions. The application
