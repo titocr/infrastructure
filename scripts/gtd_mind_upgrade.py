@@ -14,6 +14,8 @@ import subprocess
 import tempfile
 import time
 import urllib.request
+import urllib.error
+import shutil
 import uuid
 
 
@@ -21,8 +23,7 @@ def run(*args, env=None):
     result = subprocess.run(args, env=env, capture_output=True, text=True)
     if result.returncode:
         # Do not echo command output: runtime configuration may contain secrets.
-        detail = result.stderr.strip()
-        raise RuntimeError(f'{args[0]} {args[1]} failed (exit {result.returncode}): {detail}')
+        raise RuntimeError(f'{args[0]} {args[1]} failed (exit {result.returncode})')
     return result.stdout.strip()
 
 
@@ -60,24 +61,25 @@ def write_record(path, data):
     temporary.replace(path)
 
 
-def get(origin, endpoint):
-    with urllib.request.urlopen(origin + endpoint, timeout=3) as response:
+def get(origin, endpoint, headers=None):
+    request = urllib.request.Request(origin + endpoint, headers=headers or {})
+    with urllib.request.urlopen(request, timeout=3) as response:
         return json.load(response)
 
 
-def check_app(origin, actor, timeout=60):
+def check_app(origin, actor, timeout=60, mode="local", headers=None):
     deadline = time.monotonic() + timeout
     while True:
         try:
             ready = get(origin, '/api/health/ready')
-            session = get(origin, '/api/session')
+            session = get(origin, '/api/session', headers)
             if ready.get('status') != 'ready' or ready.get('checks', {}).get('database') != 'ok':
                 raise RuntimeError('Not ready')
-            if not session.get('authenticated') or session.get('actor', {}).get('source') != 'local':
-                raise RuntimeError('Local owner authentication failed')
+            if not session.get('authenticated') or session.get('actor', {}).get('source') != mode:
+                raise RuntimeError('Owner authentication failed')
             if session['actor']['id'] != actor:
                 raise RuntimeError('Owner identity changed')
-            with urllib.request.urlopen(origin + '/', timeout=3) as response:
+            with urllib.request.urlopen(urllib.request.Request(origin + '/', headers=headers or {}), timeout=3) as response:
                 if b'<app-root' not in response.read():
                     raise RuntimeError('Web application missing')
             return
@@ -96,6 +98,61 @@ class Upgrade:
         self.compose = Path(__file__).resolve().parents[1] / 'compose.gtd-mind.yaml'
         self.container = 'gtd-mind-production-1'
         self.origin = 'http://127.0.0.1:3000'
+        self.target_env = Path(os.environ.get('GTD_MIND_TARGET_ENV_FILE', str(self.env_file)))
+
+    def runtime_mode(self):
+        values = dict(item.split('=', 1) for item in self.inspect()['Config']['Env'])
+        mode = values.get('AUTH_MODE', 'local')
+        if mode not in ('local', 'cloudflare'):
+            raise RuntimeError('Unsupported production authentication mode')
+        return mode
+
+    def headers(self):
+        if self.runtime_mode() != 'cloudflare':
+            return {}
+        name = os.environ.get('GTD_MIND_OWNER_TOKEN_FILE')
+        if not name:
+            raise RuntimeError('Cloudflare release checks require GTD_MIND_OWNER_TOKEN_FILE')
+        path = Path(name)
+        if path.stat().st_mode & 0o777 != 0o600:
+            raise RuntimeError('Owner token file must have mode 0600')
+        token = path.read_text().strip()
+        if not token or any(c.isspace() for c in token):
+            raise RuntimeError('Invalid owner token file')
+        return {'Cf-Access-Jwt-Assertion': token}
+
+    def assert_direct_denied(self):
+        if self.runtime_mode() != 'cloudflare':
+            return
+        for endpoint in ('/api/session', '/api/inbox', '/api/sync-health', '/'):
+            try:
+                get(self.origin, endpoint)
+            except urllib.error.HTTPError as error:
+                if error.code == 401:
+                    continue
+            raise RuntimeError('Direct origin authentication bypass detected')
+
+    @staticmethod
+    def auth_environment(path):
+        if path.stat().st_mode & 0o777 != 0o600:
+            raise RuntimeError('Production configuration must have mode 0600')
+        values = {}
+        for line in path.read_text().splitlines():
+            if line.startswith(('AUTH_MODE=', 'APP_ORIGIN=')):
+                key, value = line.split('=', 1)
+                values[key] = value.strip()
+        mode = values.get('AUTH_MODE', 'local')
+        origin = values.get('APP_ORIGIN', 'http://127.0.0.1:3000')
+        if mode not in ('local', 'cloudflare') or (mode == 'cloudflare' and not origin.startswith('https://')):
+            raise RuntimeError('Invalid production auth configuration')
+        return dict(GTD_MIND_AUTH_MODE=mode, GTD_MIND_APP_ORIGIN=origin)
+
+    def stop_tunnel(self):
+        # Missing connector is safe. Any other Docker failure stops recovery.
+        names = run('docker', 'ps', '-a', '--format', '{{.Names}}').splitlines()
+        if 'gtd-mind-cloudflared' in names:
+            run('docker', 'stop', 'gtd-mind-cloudflared')
+
 
     def inspect(self):
         return json.loads(run('docker', 'inspect', self.container))[0]
@@ -108,8 +165,18 @@ class Upgrade:
         try:
             run('docker', 'stop', self.container)
         except RuntimeError as error:
-            if 'No such container' not in str(error):
-                raise
+            # Probe names without printing runtime secrets to distinguish absence.
+            if self.container in run('docker', 'ps', '-a', '--format', '{{.Names}}').splitlines():
+                raise error
+        if self.db.exists():
+            # Only after stopping the writer: checkpoint WAL so macOS read-only
+            # backup/integrity connections do not need to create WAL/SHM files.
+            with closing(sqlite3.connect(self.db.resolve().as_uri() + '?mode=rw', uri=True)) as db:
+                result = db.execute('PRAGMA wal_checkpoint(TRUNCATE)').fetchone()
+                if result is not None and result[0] != 0:
+                    raise RuntimeError('Database checkpoint remained busy after stop')
+                if db.execute('PRAGMA journal_mode=DELETE').fetchone()[0] != 'delete':
+                    raise RuntimeError('Unable to prepare stopped database for backup')
 
     def preflight(self, revision):
         if not re.fullmatch('[0-9a-f]{40}', revision):
@@ -144,10 +211,11 @@ class Upgrade:
         new_tree = run('git', '-C', str(self.app), 'rev-parse', revision + ':apps/server/drizzle')
         if old_tree != new_tree:
             raise RuntimeError('Migration files differ; schema-changing upgrades are not supported')
-        session = get(self.origin, '/api/session')
+        session = get(self.origin, '/api/session', self.headers())
         actor = session.get('actor', {}).get('id')
-        check_app(self.origin, actor)
-        sync = get(self.origin, '/api/sync-health')
+        check_app(self.origin, actor, mode=self.runtime_mode(), headers=self.headers())
+        self.assert_direct_denied()
+        sync = get(self.origin, '/api/sync-health', self.headers())
         if sync.get('configured') and sync.get('status') != 'healthy':
             raise RuntimeError('Resolve existing Todoist degradation before deploying')
         return dict(previous_image=current['Config']['Image'], previous_image_id=current['Image'], previous_revision=old_revision,
@@ -192,6 +260,11 @@ class Upgrade:
             origin = 'http://127.0.0.1:' + port
             check_app(origin, record['actor'])
             run('docker', 'stop', name)
+            # macOS SQLite cannot reopen a WAL-mode file read-only after the
+            # final writer removes WAL/SHM. Normalize this stopped private copy.
+            with closing(sqlite3.connect(copy)) as candidate:
+                candidate.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+                candidate.execute('PRAGMA journal_mode=DELETE')
             if fingerprint(copy) != before or before != record['schema']:
                 raise RuntimeError('Candidate changed schema or migration ledger')
             with closing(database(self.db)) as live, closing(database(copy)) as candidate:
@@ -205,14 +278,16 @@ class Upgrade:
     def switch(self, image):
         env = dict(os.environ, GTD_MIND_IMAGE=image,
                    GTD_MIND_PRODUCTION_ENV_FILE=str(self.env_file),
-                   GTD_MIND_PRODUCTION_DATA_ROOT=str(self.db.parent))
+                   GTD_MIND_PRODUCTION_DATA_ROOT=str(self.db.parent),
+                   **self.auth_environment(self.env_file))
         run('docker', 'compose', '-f', str(self.compose), '--profile', 'production',
             'up', '-d', '--no-deps', '--force-recreate', 'production', env=env)
 
     def verify(self, record, image, fresh_sync=False):
         if self.inspect()['Image'] != self.image_id(image):
             raise RuntimeError('Running image differs from selected immutable image')
-        check_app(self.origin, record['actor'])
+        check_app(self.origin, record['actor'], mode=self.runtime_mode(), headers=self.headers())
+        self.assert_direct_denied()
         if fingerprint(self.db) != record['schema']:
             raise RuntimeError('Production schema changed unexpectedly')
         if fresh_sync and record['sync_configured']:
@@ -220,7 +295,7 @@ class Upgrade:
             print('Waiting for the first successful Todoist poll from the new container...', flush=True)
             started = self.inspect()['State']['StartedAt'][:19]
             while True:
-                sync = get(self.origin, '/api/sync-health')
+                sync = get(self.origin, '/api/sync-health', self.headers())
                 if sync.get('status') == 'healthy' and (sync.get('lastSucceededAt') or '')[:19] >= started:
                     break
                 if time.monotonic() >= deadline:
@@ -228,6 +303,11 @@ class Upgrade:
                 time.sleep(3)
 
     def apply(self, record, path):
+        self.auth_environment(self.target_env)
+        saved_env = path.parent / 'previous.env'
+        shutil.copyfile(self.env_file, saved_env)
+        saved_env.chmod(0o600)
+        record['previous_env'] = str(saved_env)
         record['status'] = 'switching'
         write_record(path, record)  # Durable recovery information before stopping anything.
         try:
@@ -237,6 +317,9 @@ class Upgrade:
                 raise RuntimeError('Database schema drifted since rehearsal')
             record['backup'] = str(saved)
             write_record(path, record)
+            if self.target_env.resolve() != self.env_file.resolve():
+                shutil.copyfile(self.target_env, self.env_file)
+                self.env_file.chmod(0o600)
             self.switch(record['image'])
             self.verify(record, record['image'], fresh_sync=True)
             record['status'] = 'succeeded'
@@ -252,6 +335,15 @@ class Upgrade:
             record['status'] = 'manual-recovery-required'
             write_record(path, record)
             raise RuntimeError('Schema changed: container stopped; manual recovery required')
+        previous_env = record.get('previous_env')
+        if previous_env:
+            saved = Path(previous_env)
+            if saved.resolve().parent != path.resolve().parent:
+                raise RuntimeError('Invalid rollback configuration path')
+            if self.auth_environment(saved)['GTD_MIND_AUTH_MODE'] == 'local':
+                self.stop_tunnel()
+            shutil.copyfile(saved, self.env_file)
+            self.env_file.chmod(0o600)
         self.switch(record['previous_image'])
         self.verify(record, record['previous_image'])
         record['status'] = 'rolled-back'

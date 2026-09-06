@@ -11,6 +11,7 @@ nav:
   - Add an application: application-containerization.md
   - GTD Mind worked example: projects/gtd-mind-containerization.md
   - GTD Mind container operations: projects/gtd-mind-runtime.md
+  - GTD Mind remote access: projects/gtd-mind-access.md
   - Routine operations: operations.md
   - Repository hygiene monitoring: repository-monitoring.md
   - Runtime contract: runtime-contract.md

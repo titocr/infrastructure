@@ -1,0 +1,21 @@
+# Use with compose.gtd-mind.yaml after deploying AUTH_MODE=cloudflare.
+services:
+  cloudflared:
+    image: ${GTD_MIND_CLOUDFLARED_IMAGE:?Set a reviewed cloudflared image digest}
+    container_name: gtd-mind-cloudflared
+    user: ${GTD_MIND_CONNECTOR_UID:?Set token owner uid}:${GTD_MIND_CONNECTOR_GID:?Set token owner gid}
+    profiles: [access]
+    command: [tunnel, --no-autoupdate, run, --token-file, /run/secrets/tunnel-token]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+    volumes:
+      - ${GTD_MIND_TUNNEL_TOKEN_FILE:?Set private token path}:/run/secrets/tunnel-token:ro
+    networks:
+      - gtd-access
+networks:
+  gtd-access:
+    name: gtd-mind-access

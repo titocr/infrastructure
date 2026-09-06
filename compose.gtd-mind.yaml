@@ -44,17 +44,22 @@ services:
 
   production:
     <<: *gtd-mind-common
+    networks: [gtd-access]
     profiles: [production]
     ports:
       - "127.0.0.1:3000:3000"
     env_file:
       - ${GTD_MIND_PRODUCTION_ENV_FILE:-/dev/null}
     environment:
-      AUTH_MODE: local
-      APP_ORIGIN: http://127.0.0.1:3000
+      AUTH_MODE: ${GTD_MIND_AUTH_MODE:-local}
+      APP_ORIGIN: ${GTD_MIND_APP_ORIGIN:-http://127.0.0.1:3000}
       HOST: 0.0.0.0
       PORT: 3000
       DATABASE_PATH: /data/gtd-ai.sqlite
       WEB_ROOT: /app/apps/web/browser
     volumes:
       - ${GTD_MIND_PRODUCTION_DATA_ROOT:-/Users/titocr/container-data/gtd-mind/state}:/data
+
+networks:
+  gtd-access:
+    name: gtd-mind-access
