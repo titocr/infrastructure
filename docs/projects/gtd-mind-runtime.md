@@ -60,7 +60,7 @@ migration-count difference. It saves Tailscale Serve configuration, removes the 
 LaunchAgent, makes and verifies a SQLite backup, restores a separate container database, starts the
 container, and verifies health, session, UI, sync health, restart, and integrity.
 
-Run read-only preflight at any time:
+Before the initial native-to-container cutover only, run its read-only preflight:
 
 ```sh
 scripts/gtd-mind-container.sh preflight edeee2ab870a1d6abc69440b2b98fb30a1f62d16
@@ -79,6 +79,9 @@ native service and saved Tailscale configuration if a required cutover check fai
 
 ## Rollback
 
+This section restores the retained native deployment. Routine container updates
+use the image recovery procedure below instead.
+
 The native database is left untouched at cutover. A later explicit rollback first creates and
 checks a backup of the container database, transfers current data back to the native path, starts
 the LaunchAgent, recreates the verified `tailscale serve --bg 3000` route, and checks readiness:
@@ -89,3 +92,36 @@ scripts/gtd-mind-container.sh rollback --approve-production-rollback
 
 Do not remove the native releases, LaunchAgent, native database, pre-cutover backup, or saved
 Tailscale configuration until a separate cleanup decision.
+
+## Routine container updates
+
+From clean, published `gtd-ai` main, use `npm run release:container` to verify,
+build, and rehearse. Add `-- --apply` for an authorized production update.
+The implementation is `scripts/gtd_mind_upgrade.py` in this repository.
+
+The command compares the entire committed migration tree, tests a private SQLite
+copy without provider credentials, and refuses schema changes. Deployment stops
+the writer, creates and verifies a backup, replaces the immutable image, and checks
+readiness, owner identity, UI, database schema, and a fresh successful Todoist poll.
+It serializes upgrades using a lock. Build and rehearsal happen before downtime.
+
+Deployment records and backups live under
+`/Users/titocr/container-data/gtd-mind/deployments/<run>/` with private permissions.
+Records contain the previous and new image IDs, revisions, schema fingerprint,
+backup location, and final status. An interrupted or schema-changing failed run
+blocks subsequent upgrades until explicitly recovered. To recover a compatible
+failed or completed upgrade, use its printed absolute record path:
+
+```sh
+python3 scripts/gtd_mind_upgrade.py --rollback /Users/titocr/container-data/gtd-mind/deployments/RUN/record.json
+```
+
+Recovery preserves current database writes; it never restores the pre-upgrade
+database automatically. Schema drift stops the container and requires reviewed
+manual recovery. Native services and Tailscale remain disabled throughout.
+Private rehearsal directories are printed and retained for deliberate cleanup;
+they contain database copies and must not be committed or shared.
+
+This workflow does not provide schema migrations, recurring backups, public image
+publication, Tailscale access, or automatic upgrades. Docker health and app checks
+do not replace periodic interactive browser verification.
