@@ -197,20 +197,11 @@ class Upgrade:
         if not re.search(r'"com\.titocr\.gtd-ai"\s*=>\s*disabled', disabled):
             raise RuntimeError('Legacy LaunchAgent must remain disabled')
         current = self.inspect()
-        ports = current['HostConfig']['PortBindings']
-        if ports != {'3000/tcp': [{'HostIp': '127.0.0.1', 'HostPort': '3000'}]}:
-            raise RuntimeError('Unexpected production port binding')
-        mounts = [m for m in current['Mounts'] if m['Destination'] == '/data']
-        if len(mounts) != 1 or Path(mounts[0]['Source']).resolve() != self.db.parent:
-            raise RuntimeError('Unexpected authoritative database mount')
+        self.assert_runtime_layout(current)
         old_revision = current['Config']['Labels']['org.opencontainers.image.revision']
         for ref in (old_revision, revision):
             run('git', '-C', str(self.app), 'cat-file', '-e', ref + '^{commit}')
-        # Compare the complete committed migration tree, not just its count.
-        old_tree = run('git', '-C', str(self.app), 'rev-parse', old_revision + ':apps/server/drizzle')
-        new_tree = run('git', '-C', str(self.app), 'rev-parse', revision + ':apps/server/drizzle')
-        if old_tree != new_tree:
-            raise RuntimeError('Migration files differ; schema-changing upgrades are not supported')
+        self.validate_migrations(old_revision, revision)
         session = get(self.origin, '/api/session', self.headers())
         actor = session.get('actor', {}).get('id')
         check_app(self.origin, actor, mode=self.runtime_mode(), headers=self.headers())
@@ -222,6 +213,32 @@ class Upgrade:
                     revision=revision, schema=fingerprint(self.db), actor=actor,
                     sync_configured=sync.get('configured', False))
 
+    def assert_runtime_layout(self, current):
+        values = dict(item.split('=', 1) for item in current['Config']['Env'])
+        enabled = values.get('MCP_ENABLED') == 'true'
+        ports = {'3000/tcp': [{'HostIp': '127.0.0.1', 'HostPort': '3000'}]}
+        if enabled:
+            if values.get('MCP_PORT', '3001') != '3001' or values.get('AUTH_MODE') != 'cloudflare':
+                raise RuntimeError('MCP requires the reviewed Cloudflare listener on port 3001')
+            ports['3001/tcp'] = [{'HostIp': '127.0.0.1', 'HostPort': '3001'}]
+        if current['HostConfig']['PortBindings'] != ports:
+            raise RuntimeError('Unexpected production port binding')
+        mounts = [m for m in current['Mounts'] if m['Destination'] == '/data']
+        if len(mounts) != 1 or Path(mounts[0]['Source']).resolve() != self.db.parent:
+            raise RuntimeError('Unexpected authoritative database mount')
+        secrets = [m for m in current['Mounts'] if m['Destination'] == '/run/gtd-mcp']
+        if enabled:
+            if len(secrets) != 1 or Path(secrets[0]['Source']).resolve() != self.root / 'config/mcp' or secrets[0]['RW']:
+                raise RuntimeError('Unexpected MCP secret mount')
+        elif secrets:
+            raise RuntimeError('Disabled MCP must not mount its credentials')
+
+    def validate_migrations(self, old_revision, revision):
+        # Compare the complete committed migration tree, not just its count.
+        old_tree = run('git', '-C', str(self.app), 'rev-parse', old_revision + ':apps/server/drizzle')
+        new_tree = run('git', '-C', str(self.app), 'rev-parse', revision + ':apps/server/drizzle')
+        if old_tree != new_tree:
+            raise RuntimeError('Migration files differ; schema-changing upgrades are not supported')
     def build(self, revision, directory):
         archive = directory / 'source.tar'
         run('git', '-C', str(self.app), 'archive', '--output', str(archive), revision)
@@ -283,10 +300,21 @@ class Upgrade:
                    GTD_MIND_PRODUCTION_ENV_FILE=str(self.env_file),
                    GTD_MIND_PRODUCTION_DATA_ROOT=str(self.db.parent),
                    **self.auth_environment(self.env_file))
-        run('docker', 'compose', '-f', str(self.compose), '--profile', 'production',
+        values = dict(line.split('=', 1) for line in self.env_file.read_text().splitlines() if '=' in line and not line.startswith('#'))
+        compose_args = ['-f', str(self.compose)]
+        if values.get('MCP_ENABLED') == 'true':
+            if values.get('MCP_PORT', '3001') != '3001' or env['GTD_MIND_AUTH_MODE'] != 'cloudflare':
+                raise RuntimeError('MCP configuration must use Cloudflare and port 3001')
+            secrets = self.root / 'config/mcp'
+            if not secrets.is_dir() or secrets.stat().st_mode & 0o077:
+                raise RuntimeError('MCP secret directory must exist with mode 0700')
+            env['GTD_MIND_MCP_SECRET_ROOT'] = str(secrets)
+            compose_args += ['-f', str(self.compose.with_name('compose.gtd-mind-mcp.yaml'))]
+        run('docker', 'compose', *compose_args, '--profile', 'production',
             'up', '-d', '--no-deps', '--force-recreate', 'production', env=env)
 
     def verify(self, record, image, fresh_sync=False):
+        self.assert_runtime_layout(self.inspect())
         if self.inspect()['Image'] != self.image_id(image):
             raise RuntimeError('Running image differs from selected immutable image')
         check_app(self.origin, record['actor'], mode=self.runtime_mode(), headers=self.headers())

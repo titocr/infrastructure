@@ -1,0 +1,7 @@
+# Explicitly added only when MCP_ENABLED=true; the browser listener is unchanged.
+services:
+  production:
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - ${GTD_MIND_MCP_SECRET_ROOT:?Set the private MCP configuration directory}:/run/gtd-mcp:ro
