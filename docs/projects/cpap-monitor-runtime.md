@@ -76,13 +76,13 @@ copy. A copy of card files alone does not preserve OSCAR preferences/annotations
 
 ## Current verification
 
-Selected application implementation: `402909d69385ea45916d910ead97de37b9f88775`.
-Image: `sha256:92f789087d489d1f8dc51ac16c503a96122011b8134ed9b91f479fc2e6785d2e`.
-Container at setup: `bbaae666857ea654269f67e612a503ac69ddbbf57507133ac44def455adb9abc`.
+Selected application implementation: `874d22b7e0819a3cd728915371b28a3f76eaf052`.
+Image: `sha256:dbe5b3609e48f04c255c2f7692e53c79564aacab49f429a8d4472f075ee06fb7`.
+Container: `13311583753c3f0b639af69cf965dcffa03200d0ba19cd35598458d892c3da46`.
 
-Built-in authenticated web transport is working. The last startup check found no
-OSCAR20 process, no startup log yet, and container health unhealthy. The persistent
-Openbox autostart was copied from the prior image; the application task owns its
-repair and actual browser verification. This is not yet a verified working OSCAR
-GUI. Early resource sample: approximately 577 MiB of the 2 GiB budget and 4.4% CPU.
-Disposable test profiles may be created during the application verification.
+The application fixed a missing Qt network library and corrected persistent
+Openbox autostart. After recreation, OSCAR20 runs (observed PID 401), the container
+is healthy, and authenticated browser HTTP returns 200. Interactive browser
+verification is being completed in the application task. Early resource sample
+before the application repair: approximately 577 MiB of the 2 GiB budget and 4.4%
+CPU. Disposable test profiles may be created during application verification.
