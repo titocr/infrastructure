@@ -1,6 +1,10 @@
 # OSCAR network-disabled diagnostic: execution review
 
-Status: implementation prepared; **execution awaits changed-scope approval**.
+Status: execution was authorized and attempted; **stopped at startup validation**.
+See [live diagnostic record](cpap-monitor-diagnostic-20260919.md). Relay/browser
+execution was not reached; do not rerun the current image without review.
+
+The following implementation and planned procedure are retained for reference.
 Verified synthetically: 2026-09-19, Node 24.18.0. No host listener, Docker command,
 GUI candidate, network probe, Wi-Fi change or real card access was performed.
 

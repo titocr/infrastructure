@@ -33,6 +33,15 @@ The tested GTD Mind candidate is stopped but its data and image are retained. Se
 
 ## Host conventions
 
+### OSCAR diagnostic record
+
+On 2026-09-19, `cpap-monitor-candidate` ran briefly with network none and no
+published ports, then stopped after startup hardening mismatches. No OSCAR host
+relay or production service was enabled. The stopped candidate and private empty
+state are retained. See the [diagnostic record](projects/cpap-monitor-diagnostic-20260919.md).
+
+### General conventions
+
 - Bind published ports to `127.0.0.1` unless broader exposure is explicitly approved and documented.
 - Put stateful application data under `/Users/titocr/container-data/<service>`.
 - Keep configuration and documentation in Git.
