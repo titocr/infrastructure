@@ -1,0 +1,53 @@
+# Revised network-none diagnostic. Execution requires changed-scope approval.
+name: cpap-monitor-candidate
+services:
+  oscar:
+    image: ${CPAP_CANDIDATE_IMAGE:?Set the newly reviewed immutable image ID}
+    pull_policy: never
+    platform: linux/arm64
+    profiles: [diagnostic]
+    network_mode: none
+    restart: "no"
+    cpus: 2
+    mem_limit: 2g
+    shm_size: 256m
+    stop_signal: SIGTERM
+    stop_grace_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      PUID: ${CPAP_CANDIDATE_UID:?Set verified abc UID}
+      PGID: ${CPAP_CANDIDATE_GID:?Set verified abc GID}
+      TZ: America/Los_Angeles
+      START_DOCKER: "false"
+      HARDEN_DESKTOP: "true"
+      RESTART_APP: "false"
+      PIXELFLUX_WAYLAND: "false"
+      PELORUS: "false"
+      NO_GAMEPAD: "true"
+      SELKIES_FILE_TRANSFERS: ""
+      SELKIES_COMMAND_ENABLED: "false"
+      SELKIES_UI_SIDEBAR_SHOW_FILES: "false"
+      SELKIES_UI_SIDEBAR_SHOW_APPS: "false"
+      SELKIES_AUDIO_ENABLED: "false"
+      SELKIES_MICROPHONE_ENABLED: "false"
+      SELKIES_GAMEPAD_ENABLED: "false"
+    volumes:
+      - type: bind
+        source: ${CPAP_CANDIDATE_CONFIG:?Set fresh private candidate config directory}
+        target: /config
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${CPAP_CANDIDATE_CARD:?Set fresh empty candidate card directory}
+        target: /sdcard
+        read_only: true
+        bind:
+          create_host_path: false
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
