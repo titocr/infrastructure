@@ -14,13 +14,18 @@ network-disabled diagnostic are retired experiments, not the operating path.
 - Compose: `compose.cpap-monitor.yaml`, project `cpap-monitor-standard`.
 - Nonsecret host settings: same private root, `compose.env`.
 - Entire GUI/profile state: same root, `config`, mounted at `/config`.
-- Empty card-copy directory: same root, `card`, mounted read-only at `/sdcard`.
+- Real card mirror: same root, `card`, mounted read-only at `/sdcard`.
+- Verified original card backup:
+  `/Users/titocr/container-data/cpap-monitor-card-backups/20260919T101502/card`,
+  with an adjacent SHA256 manifest.
 - Startup: manual (`restart: no`); no login agent, schedule or auto-updater.
 - Limits: 2 CPUs, 2 GiB RAM, 256 MiB shared memory; bounded container logs.
 
-This is an isolated candidate. Disposable test profiles are authorized; actual
-card data and Wi-Fi integration have not been introduced. The prior stopped
-network-disabled candidate and its evidence remain separate and retained.
+**The standard setup now contains real health data.** Despite `candidate` in its
+host path, neither the entire `config` nor `card` directory is disposable. The
+real `AirSense11` profile (folder `airsense11`) is separate from `Disposable-Test`
+(folder `disposable-test`). The prior stopped network-disabled diagnostic and its
+empty state remain separate. Wi-Fi integration has not been introduced.
 
 ## Ordinary commands
 
@@ -57,22 +62,33 @@ Existing GTD Mind, guide and Home Assistant endpoints retained 401/200/200 respo
 The image's internal Selkies backend can bypass Nginx authentication through direct
 container access. Feature defaults (including file transfers) are not assumed
 disabled merely because the sidebar is hidden or environment flags request it.
-No sensitive data is present; do not expose this desktop publicly. The prior scan
-still contains findings. These are recorded limitations for subsequent review,
-not a clean-scan claim or a reason to keep rebuilding the private empty GUI.
+Real health data is now present; do not expose this desktop publicly. The prior
+scan still contains findings. The private-host access model and known direct
+container-access limitation remain documented; this is not a clean-scan claim.
 
-## Test-state backup and reset
+## Real-data protection and test-profile cleanup
 
-Disposable test state is confined to the candidate config directory. Before
-resetting, close OSCAR and stop only this Compose service. Preserve or rename the
-complete config directory, create a fresh private config directory with matching
-ownership, then start the candidate. Do not delete the card directory, earlier
-diagnostic evidence or unrelated container data. Actual deletion is a separate
-explicit choice; no reset/deletion has been performed by this setup.
+Do not reset, replace or delete the whole config directory to clean up test data.
+Only the specifically named `Disposable-Test` profile is disposable. When its
+removal is requested, verify the selected profile is `Disposable-Test`, then use
+OSCAR's Profile screen **Destroy Profile**. Preserve `AirSense11`/`airsense11`,
+the shared database, settings, card mirror and original card backup. No profile
+deletion is implied by this documentation update.
 
-Before real-data use, specify backup retention and an encrypted off-host
-destination and demonstrate restoration of the whole stopped config plus card
-copy. A copy of card files alone does not preserve OSCAR preferences/annotations.
+Before any reset, migration or image update, close OSCAR, stop only this Compose
+service and take a consistent backup of the complete config directory. Preserve
+the matching image and verify restoration into separate storage before relying
+on it for recovery. Never test restore over the live real-data directory.
+
+The application task reported a verified backup and import mirror of 1,796 files,
+310,245,044 bytes: source/backup/mirror SHA256 values matched. Only macOS indexing
+and trash metadata were excluded. Preserve original names, bytes and structure.
+The physical card was safely ejected after import.
+
+Recurring backup coverage, retention, an encrypted off-host destination and a
+whole-profile restore test remain outstanding. The verified local card backup
+does not back up OSCAR preferences, annotations or subsequent profile changes;
+both the complete config and card copy need coverage.
 
 ## Current verification
 
@@ -90,12 +106,14 @@ and opened the Welcome screen with CPAP Importer available.
 The application task created `Disposable-Test` with no personal details or real
 CPAP data. Its folder is `disposable-test`; the data root is
 `/config/Documents/OSCAR20_Data`, and `oscar.db` plus the profile were verified on
-the persistent host bind mount. Remove this disposable profile through OSCAR's
-Profile screen using **Destroy Profile** when it is no longer needed. No deletion
-has been performed. Whole-config reset remains available as described above.
+the persistent host bind mount. This test profile remains separate and may be
+removed using the narrowly scoped procedure above; whole-config reset is no
+longer an appropriate test cleanup operation.
 
-The candidate remains running for use. This verifies empty/test-profile GUI
-operation and on-disk persistence, not real card import or a completed backup
-restore test. Early resource sample before the application repair: approximately
-577 MiB of the 2 GiB budget and 4.4% CPU. ez Share/card collection is the next
-separate integration step; no Wi-Fi or card access has been configured.
+The application task subsequently confirmed an explicitly authorized physical-card
+copy and import into `AirSense11`, with detailed Daily graphs rendering. This
+update records that reported application verification without rereading patient
+files or documenting clinical values. The service remains running. A complete
+backup restore test has not been performed. Early resource sample before the
+application repair: approximately 577 MiB of the 2 GiB budget and 4.4% CPU.
+ez Share wireless collection remains a separate integration step.
