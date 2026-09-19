@@ -83,6 +83,19 @@ Container: `13311583753c3f0b639af69cf965dcffa03200d0ba19cd35598458d892c3da46`.
 The application fixed a missing Qt network library and corrected persistent
 Openbox autostart. After recreation, OSCAR20 runs (observed PID 401), the container
 is healthy, and authenticated browser HTTP returns 200. Interactive browser
-verification is being completed in the application task. Early resource sample
-before the application repair: approximately 577 MiB of the 2 GiB budget and 4.4%
-CPU. Disposable test profiles may be created during application verification.
+verification passed in native Chrome at the same endpoint with normal Basic
+authentication: OSCAR 2.0.1 completed first-run setup, skipped old-data migration,
+and opened the Welcome screen with CPAP Importer available.
+
+The application task created `Disposable-Test` with no personal details or real
+CPAP data. Its folder is `disposable-test`; the data root is
+`/config/Documents/OSCAR20_Data`, and `oscar.db` plus the profile were verified on
+the persistent host bind mount. Remove this disposable profile through OSCAR's
+Profile screen using **Destroy Profile** when it is no longer needed. No deletion
+has been performed. Whole-config reset remains available as described above.
+
+The candidate remains running for use. This verifies empty/test-profile GUI
+operation and on-disk persistence, not real card import or a completed backup
+restore test. Early resource sample before the application repair: approximately
+577 MiB of the 2 GiB budget and 4.4% CPU. ez Share/card collection is the next
+separate integration step; no Wi-Fi or card access has been configured.
