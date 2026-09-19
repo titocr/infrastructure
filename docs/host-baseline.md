@@ -35,6 +35,10 @@ The tested GTD Mind candidate is stopped but its data and image are retained. Se
 
 ### OSCAR diagnostic record
 
+The current OSCAR candidate uses ordinary bridge networking with authenticated
+browser access published on `127.0.0.1:8089`. It has separate test storage and
+manual startup; no public route was added. See [OSCAR operations](projects/cpap-monitor-runtime.md).
+
 On 2026-09-19, `cpap-monitor-candidate` ran briefly with network none and no
 published ports, then stopped after startup hardening mismatches. No OSCAR host
 relay or production service was enabled. The stopped candidate and private empty

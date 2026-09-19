@@ -1,5 +1,9 @@
 # OSCAR network-disabled diagnostic: execution review
 
+**Retired approach:** the user subsequently selected standard private-host
+Compose networking. Use [OSCAR operations](cpap-monitor-runtime.md); this document
+and custom relay are historical, not the current startup procedure.
+
 Status: execution was authorized and attempted; **stopped at startup validation**.
 See [live diagnostic record](cpap-monitor-diagnostic-20260919.md). Relay/browser
 execution was not reached; do not rerun the current image without review.
