@@ -12,6 +12,7 @@ import shutil
 import sqlite3
 import tempfile
 import uuid
+import gtd_mind_multi_user as multi_user
 from gtd_mind_upgrade import Upgrade, backup, fingerprint, database, run, write_record, check_app
 
 
@@ -42,10 +43,15 @@ class MigrationUpgrade(Upgrade):
         validate_review(self.app, old_revision, revision, self.review)
 
     def rehearse(self, image, directory, record):
+        if self.review.get('profile') == multi_user.PROFILE:
+            multi_user.validate_environment(self)
+            return multi_user.rehearse(self, image, directory, record)
         state = directory / 'candidate'
         state.mkdir(mode=0o700)
         copy = state / 'gtd-ai.sqlite'
-        backup(self.db, copy)
+        baseline = directory / 'immutable-baseline.sqlite'
+        backup(self.db, baseline)
+        backup(baseline, copy)
         name = 'gtd-mind-migration-rehearsal-' + uuid.uuid4().hex[:12]
         try:
             run('docker', 'run', '-d', '--name', name, '--init', '--read-only',
@@ -71,7 +77,7 @@ class MigrationUpgrade(Upgrade):
             record['candidate_schema'] = fingerprint(copy)
             if record['candidate_schema'] == record['schema']:
                 raise RuntimeError('Reviewed migration did not change the schema')
-            with closing(database(self.db)) as live, closing(database(copy)) as candidate:
+            with closing(database(baseline)) as live, closing(database(copy)) as candidate:
                 for table in ('work_items', 'gtd_projects', 'change_sets', 'manual_commands', 'audit_events', 'source_observations', 'source_items', 'source_projections', 'work_item_gtd_states', 'local_creation_commands', 'local_completion_commands', 'today_memberships', 'today_membership_commands'):
                     # Hash retained original columns and all rows; never log personal content.
                     columns = [r[1] for r in live.execute(f'PRAGMA table_info({table})')]
@@ -79,7 +85,7 @@ class MigrationUpgrade(Upgrade):
                     if live.execute(query).fetchall() != candidate.execute(query).fetchall():
                         raise RuntimeError('Candidate changed retained rows in ' + table)
             restored = directory / 'restore-check.sqlite'
-            backup(self.db, restored)
+            backup(baseline, restored)
             if fingerprint(restored) != record['schema']:
                 raise RuntimeError('Original schema could not be restored')
             record['review'] = self.review
@@ -87,16 +93,24 @@ class MigrationUpgrade(Upgrade):
             run('docker', 'rm', '-f', name)
 
     def apply(self, record, path):
-        if self.target_env.resolve() != self.env_file.resolve():
+        profile = self.review.get('profile') == multi_user.PROFILE
+        if profile:
+            multi_user.validate_environment(self)
+        elif self.target_env.resolve() != self.env_file.resolve():
             raise RuntimeError('Perform configuration transitions separately from schema migrations')
         self.auth_environment(self.target_env)
         values = dict(line.split('=', 1) for line in self.target_env.read_text().splitlines() if '=' in line and not line.startswith('#'))
-        if values.get('MCP_ENABLED') == 'true':
+        if values.get('MCP_ENABLED') == 'true' and not profile:
             raise RuntimeError('Initial migration must leave MCP disabled')
         original_env = self.env_file
         saved_env = path.parent / 'previous.env'
         shutil.copyfile(original_env, saved_env)
         saved_env.chmod(0o600)
+        if profile:
+            candidate_env = path.parent / 'candidate.env'
+            multi_user.private_copy(self.target_env, candidate_env)
+            record['candidate_env'] = str(candidate_env)
+            record['candidate_env_sha256'] = hashlib.sha256(candidate_env.read_bytes()).hexdigest()
         paused = path.parent / 'paused.env'
         paused.write_text(self.target_env.read_text() + '\nMCP_ENABLED=false\nTODOIST_POLLING_PAUSED=true\nWRITE_QUARANTINE=true\n')
         paused.chmod(0o600)
@@ -111,6 +125,8 @@ class MigrationUpgrade(Upgrade):
                 raise RuntimeError('Production drifted since rehearsal')
             record['backup'] = str(saved)
             write_record(path, record)
+            if profile:
+                multi_user.migrate_closed(self, record, path)
             self.env_file = paused
             self.switch(record['image'])
             self.verify({**record, 'schema': record['candidate_schema']}, record['image'])
@@ -182,6 +198,11 @@ class MigrationUpgrade(Upgrade):
         record.update(writes_resumed=True, phase='resuming')
         write_record(path, record)  # From this point, automatic database restore is forbidden.
         try:
+            if record.get('review', {}).get('profile') == multi_user.PROFILE:
+                candidate = Path(record['candidate_env'])
+                if candidate.resolve().parent != path.resolve().parent or hashlib.sha256(candidate.read_bytes()).hexdigest() != record['candidate_env_sha256']:
+                    raise RuntimeError('Reviewed candidate configuration changed')
+                multi_user.private_copy(candidate, self.env_file)
             self.switch(record['image'])
             self.verify({**record, 'schema': record['candidate_schema']}, record['image'], fresh_sync=True)
             if record.get('connector_was_running'):
@@ -199,6 +220,7 @@ def main():
     parser.add_argument('revision', nargs='?')
     parser.add_argument('--review', type=Path)
     parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--approve-private-copy', action='store_true')
     parser.add_argument('--resume', type=Path)
     parser.add_argument('--restore-quarantined', type=Path)
     parser.add_argument('--app-repo', type=Path, default=Path('/Users/titocr/code/gtd-ai'))
@@ -206,6 +228,8 @@ def main():
     os.umask(0o077)
     root = Path('/Users/titocr/container-data/gtd-mind')
     review = json.loads(args.review.read_text()) if args.review else {}
+    if review.get('profile') == multi_user.PROFILE and not args.approve_private_copy:
+        parser.error('This profile reads a private production copy; separate approval and --approve-private-copy are required')
     upgrade = MigrationUpgrade(args.app_repo, root, review)
     with (root / 'upgrade.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

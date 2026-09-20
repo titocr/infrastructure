@@ -1,0 +1,5 @@
+# Separate from /data snapshots; never restore this register from an older backup.
+services:
+  production:
+    volumes:
+      - ${GTD_MIND_RECOVERY_ROOT:?Set the protected external recovery directory}:/recovery:rw

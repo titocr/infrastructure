@@ -226,6 +226,18 @@ class Upgrade:
         mounts = [m for m in current['Mounts'] if m['Destination'] == '/data']
         if len(mounts) != 1 or Path(mounts[0]['Source']).resolve() != self.db.parent:
             raise RuntimeError('Unexpected authoritative database mount')
+        recovery = [m for m in current['Mounts'] if m['Destination'] == '/recovery']
+        if values.get('ERASURE_REGISTER_PATH'):
+            if values['ERASURE_REGISTER_PATH'] != '/recovery/erasure.sqlite' or len(recovery) != 1 or Path(recovery[0]['Source']).resolve() != self.root / 'recovery' or not recovery[0]['RW']:
+                raise RuntimeError('Unexpected protected erasure register mount')
+        elif recovery:
+            raise RuntimeError('Unconfigured erasure register mount')
+        integrations = [m for m in current['Mounts'] if m['Destination'] == '/run/gtd-integrations']
+        if values.get('TODOIST_OAUTH_CLIENT_ID'):
+            if values.get('TODOIST_CREDENTIAL_KEY_FILE') != '/run/gtd-integrations/todoist.key' or len(integrations) != 1 or Path(integrations[0]['Source']).resolve() != self.root / 'config/integrations' or integrations[0]['RW']:
+                raise RuntimeError('Unexpected personal integration secret mount')
+        elif integrations:
+            raise RuntimeError('Unconfigured personal integration secret mount')
         secrets = [m for m in current['Mounts'] if m['Destination'] == '/run/gtd-mcp']
         if enabled:
             if len(secrets) != 1 or Path(secrets[0]['Source']).resolve() != self.root / 'config/mcp' or secrets[0]['RW']:
@@ -255,6 +267,10 @@ class Upgrade:
         return tag
 
     def rehearse(self, image, directory, record):
+        values = dict(line.split('=', 1) for line in self.target_env.read_text().splitlines() if '=' in line and not line.startswith('#'))
+        if values.get('ERASURE_REGISTER_PATH'):
+            from gtd_mind_multi_user import rehearse_existing
+            return rehearse_existing(self, image, directory, record)
         state = directory / 'candidate'
         state.mkdir(mode=0o700)
         copy = state / 'gtd-ai.sqlite'
@@ -302,6 +318,19 @@ class Upgrade:
                    **self.auth_environment(self.env_file))
         values = dict(line.split('=', 1) for line in self.env_file.read_text().splitlines() if '=' in line and not line.startswith('#'))
         compose_args = ['-f', str(self.compose)]
+        if values.get('ERASURE_REGISTER_PATH'):
+            recovery = self.root / 'recovery'
+            if values['ERASURE_REGISTER_PATH'] != '/recovery/erasure.sqlite' or not (recovery / 'erasure.sqlite').is_file() or recovery.stat().st_mode & 0o077:
+                raise RuntimeError('Protected erasure register must already exist outside snapshots')
+            env['GTD_MIND_RECOVERY_ROOT'] = str(recovery)
+            compose_args += ['-f', str(self.compose.with_name('compose.gtd-mind-recovery.yaml'))]
+        if values.get('TODOIST_OAUTH_CLIENT_ID'):
+            integrations = self.root / 'config/integrations'
+            key = integrations / 'todoist.key'
+            if values.get('TODOIST_CREDENTIAL_KEY_FILE') != '/run/gtd-integrations/todoist.key' or not key.is_file() or integrations.stat().st_mode & 0o077 or key.stat().st_mode & 0o077:
+                raise RuntimeError('Personal integration key requires a protected read-only mount')
+            env['GTD_MIND_INTEGRATION_SECRET_ROOT'] = str(integrations)
+            compose_args += ['-f', str(self.compose.with_name('compose.gtd-mind-integrations.yaml'))]
         if values.get('MCP_ENABLED') == 'true':
             if values.get('MCP_PORT', '3001') != '3001' or env['GTD_MIND_AUTH_MODE'] != 'cloudflare':
                 raise RuntimeError('MCP configuration must use Cloudflare and port 3001')
