@@ -86,6 +86,7 @@ def compare_original(baseline, candidate):
             raise RuntimeError('Candidate integrity failed')
 
 def rehearse(engine, image, directory, record):
+    image = record.get('image_id', image)
     binding = validate_inputs(engine.review, record['actor'])
     directory = directory.resolve()
     state = directory / 'state'
@@ -110,7 +111,7 @@ def rehearse(engine, image, directory, record):
     restored = directory / 'restored'
     restored.mkdir(mode=0o700)
     backup(baseline, restored / 'gtd-ai.sqlite')
-    boot(record['previous_image'], restored, recovery, record['actor'], False)
+    boot(record.get('previous_image_id', record['previous_image']), restored, recovery, record['actor'], False)
     compare_original(baseline, restored / 'gtd-ai.sqlite')
     if fingerprint(restored / 'gtd-ai.sqlite') != record['schema']:
         raise RuntimeError('Matching prior image changed restored schema')
@@ -151,6 +152,7 @@ def copy_register(source, target):
     target.chmod(0o600)
 
 def rehearse_existing(engine, image, directory, record):
+    image = record.get('image_id', image)
     directory = directory.resolve()
     baseline = directory / 'baseline.sqlite'
     state, recovery, restored = directory / 'state', directory / 'recovery', directory / 'restored'
@@ -164,5 +166,5 @@ def rehearse_existing(engine, image, directory, record):
     if fingerprint(state / 'gtd-ai.sqlite') != record['schema']:
         raise RuntimeError('Schema-preserving candidate changed schema')
     backup(baseline, restored / 'gtd-ai.sqlite')
-    boot(record['previous_image'], restored, recovery, record['actor'], True)
+    boot(record.get('previous_image_id', record['previous_image']), restored, recovery, record['actor'], True)
     compare_original(baseline, restored / 'gtd-ai.sqlite')
