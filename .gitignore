@@ -2,3 +2,4 @@
 .env
 *.log
 site/
+__pycache__/

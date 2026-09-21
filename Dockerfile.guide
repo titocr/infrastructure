@@ -5,6 +5,11 @@ COPY requirements-docs.txt .
 RUN pip install --no-cache-dir --requirement requirements-docs.txt
 COPY mkdocs.yml .
 COPY docs ./docs
+COPY scripts/manual_build.py ./scripts/manual_build.py
+ARG GUIDE_SOURCE_REVISION=unrecorded
+ARG GUIDE_SOURCE_SHA256=unrecorded
+ARG GUIDE_SOURCE_MODIFIED=true
+ARG GUIDE_BUILD_TIME=unrecorded
 RUN mkdocs build --strict --site-dir /site
 
 FROM nginx@sha256:db35bfc6b2951e7f8a72db5db120288c127ffaeeb4a6d4b95a26fead017d5913

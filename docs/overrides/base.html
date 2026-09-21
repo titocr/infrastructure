@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if page %}{{ page.title }} · {% endif %}{{ config.site_name }}</title>
+  <meta name="description" content="{{ config.site_description }}">
+  <link rel="stylesheet" href="{{ 'assets/manual.css'|url }}?v={{ config.extra.manual_build.source_sha256 }}">
+  <script src="{{ 'assets/manual.js'|url }}?v={{ config.extra.manual_build.source_sha256 }}" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header">
+    <a class="site-title" href="{{ nav.homepage.url|url }}">Mac Studio Infrastructure Manual</a>
+    <button class="nav-toggle" type="button" aria-controls="site-navigation" aria-expanded="false" hidden>Menu</button>
+    <form role="search" action="{{ 'search.html'|url }}" method="get">
+      <label class="sr-only" for="site-search">Search manual</label>
+      <input id="site-search" type="search" name="q" placeholder="Search manual">
+      <button type="submit">Search</button>
+    </form>
+  </header>
+  <div class="layout">
+    <nav class="site-nav" id="site-navigation" aria-label="Manual pages">
+      {% for item in nav %}
+        {% if item.children %}
+          <section class="nav-group" aria-labelledby="nav-group-{{ loop.index }}">
+            <h2 id="nav-group-{{ loop.index }}">{{ item.title }}</h2>
+            <ul>{% for child in item.children %}
+              <li><a href="{{ child.url|url }}"{% if child == page %} aria-current="page"{% endif %}>{{ child.title }}</a></li>
+            {% endfor %}</ul>
+          </section>
+        {% else %}
+          <ul class="nav-standalone"><li><a href="{{ item.url|url }}"{% if item == page %} aria-current="page"{% endif %}>{{ item.title }}</a></li></ul>
+        {% endif %}
+      {% endfor %}
+    </nav>
+    <div class="document">
+      {% if page and page.toc %}
+        {% set headings = page.toc|list %}
+        {% set entries = headings[0].children if headings|length == 1 else headings %}
+        {% if entries|length > 1 %}
+        <nav class="page-toc" aria-label="On this page">
+          <details>
+            <summary>On this page</summary>
+            <ul>{% for entry in entries %}<li><a href="{{ entry.url }}">{{ entry.title }}</a></li>{% endfor %}</ul>
+          </details>
+        </nav>
+        {% endif %}
+      {% endif %}
+      <main id="main-content" tabindex="-1">
+        {% block content %}{{ page.content }}{% endblock %}
+      </main>
+      {% include "footer.html" %}
+    </div>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

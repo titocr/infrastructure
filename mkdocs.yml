@@ -1,25 +1,45 @@
 site_name: Mac Studio Infrastructure Manual
-site_description: Local operating manual for containerized applications on the Mac Studio
+site_description: Hardware, workloads, operations and recovery for the Mac Studio
 site_url: http://127.0.0.1:8088/
 theme:
   name: readthedocs
-  highlightjs: true
+  custom_dir: docs/overrides
+  highlightjs: false
+hooks:
+  - scripts/manual_build.py
+exclude_docs: |
+  overrides/
 nav:
-  - Start here: index.md
-  - Concepts and responsibilities: concepts.md
-  - Host baseline and inventory: host-baseline.md
-  - Add an application: application-containerization.md
-  - GTD Mind worked example: projects/gtd-mind-containerization.md
-  - GTD Mind container operations: projects/gtd-mind-runtime.md
-  - GTD Mind remote access: projects/gtd-mind-access.md
-  - OSCAR operations: projects/cpap-monitor-runtime.md
-  - Routine operations: operations.md
-  - Repository hygiene monitoring: repository-monitoring.md
-  - Runtime contract: runtime-contract.md
-  - Troubleshooting: troubleshooting.md
+  - This Mac:
+      - Overview: index.md
+      - Hardware and capacity: host-baseline.md
+      - Service inventory: services.md
+  - Services:
+      - GTD Mind: projects/gtd-mind-runtime.md
+      - GTD access and MCP: projects/gtd-mind-access.md
+      - OSCAR: projects/cpap-monitor-runtime.md
+      - Home Assistant: projects/home-assistant.md
+      - Options Finder: projects/options-finder.md
+      - Mac Mini media center: projects/media-center.md
+      - This manual: manual.md
+      - Repository monitoring: repository-monitoring.md
+  - Operations and recovery:
+      - Routine checks: operations.md
+      - Host recovery: recovery.md
+      - Backup coverage: backups.md
+      - Troubleshooting: troubleshooting.md
+  - Outstanding work: outstanding.md
+  - Reference and history:
+      - Deployment and recovery: deployment-reference.md
+      - Responsibilities: concepts.md
+      - Add an application: application-containerization.md
+      - Runtime contract: runtime-contract.md
+      - Application documentation: sources.md
+      - Earlier documentation: history/index.md
 markdown_extensions:
   - admonition
   - tables
+  - fenced_code
   - toc:
       permalink: true
 strict: true

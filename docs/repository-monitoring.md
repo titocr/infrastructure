@@ -2,6 +2,29 @@
 
 The Mac Studio checks the direct child repositories in `/Users/titocr/code` for forgotten Git work. It is deliberately read-only apart from refreshing remote-tracking references during its daily `git fetch --prune`: it never commits, pulls, pushes, stashes, cleans, or changes branches.
 
+## Current state and ownership
+
+Verified **2026-09-21**: all three `com.titocr.repository-monitor.*` jobs are loaded
+in the user launchd domain, idle between runs, and each reports last exit code 0.
+The owning repository is `/Users/titocr/code/infrastructure`; there is no web UI.
+Scan runs at login/every four hours, daily digest at 09:00, weekly summary Saturday
+09:15 local time. This refresh did not send a test notification.
+
+Private settings are `~/.config/repository-monitoring/monitoring.env`; state and
+snapshots live under `~/Library/Application Support/Repository Monitoring/`.
+Scripts are in Git; private settings/state backup coverage was not verified.
+If scheduling disappears, inspect the three jobs and retained plists first:
+
+```sh
+launchctl print gui/$(id -u)/com.titocr.repository-monitor.scan
+launchctl print gui/$(id -u)/com.titocr.repository-monitor.daily
+launchctl print gui/$(id -u)/com.titocr.repository-monitor.weekly
+```
+
+For authorized recovery, rerun the installer below with existing private settings.
+It reloads jobs and may trigger the login scan; do not reinstall merely to inspect.
+Retain state to preserve notification continuity. Check logs locally for failures.
+
 ## Install
 
 Store the existing Media center Discord webhook from 1Password in a Studio-local settings file. Do not copy the settings file from the Mini and do not commit it.

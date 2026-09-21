@@ -1,39 +1,48 @@
-# Mac Studio Infrastructure Manual
+# This Mac Studio
 
-This is the durable operating guide for containerized applications on this Mac Studio. It is written to stand on its own if a Codex conversation disappears. The Markdown files, configuration, and change history live together in `/Users/titocr/code/infrastructure`.
+This **Mac Studio with Apple M2 Max** is a personal development workstation and
+application host. It has a **12-core CPU, 30-core GPU, 32 GB unified memory, and a
+500.28 GB internal SSD**. See [hardware and capacity](host-baseline.md) for the
+verified specifications and dated measurements.
 
-Use this manual to understand what is running, ask an application project to become container-ready, review the result, add it safely to this host, or recover enough context to continue in a new Codex task.
+## What it is used for
 
-## If the chat history is gone
+- **Developing software:** local projects under `/Users/titocr/code`, with source
+  control and development tools on macOS.
+- **Personal productivity:** GTD Mind runs continuously in a container; Options
+  Finder runs as a native service for personal research and paper-trade journaling.
+- **OSCAR:** a browser-accessible desktop for importing and reviewing CPAP data,
+  started manually when needed.
+- **Home Assistant:** a local home-automation environment owned by `thinq-interface`.
+  Application setup is documented in its owning project.
+- **Repository monitoring:** scheduled checks flag forgotten Git work.
 
-1. Open the Codex project named `infrastructure`, or open this repository at `/Users/titocr/code/infrastructure`.
-2. Start a new task and paste:
+## What runs here
 
-   ```text
-   Read README.md and the complete manual under docs/. Inspect the repository and current runtime before changing anything. Summarize the current host, services, pending work, and safety boundaries, then propose the smallest coherent next step.
-   ```
+| Workload | Access | Operation |
+| --- | --- | --- |
+| GTD Mind | [Open GTD Mind](https://gtd.purpletardis.xyz) | Container plus Cloudflare connector; [runbook](projects/gtd-mind-runtime.md) |
+| OSCAR | [Open OSCAR](http://127.0.0.1:8089/) | Manual-start container; [runbook](projects/cpap-monitor-runtime.md) |
+| Home Assistant | [Open Home Assistant](http://127.0.0.1:8123/) | Container; [runbook](projects/home-assistant.md) |
+| Options Finder | [Open Options Finder](http://127.0.0.1:8000/) | Native LaunchAgent; [runbook](projects/options-finder.md) |
+| This manual | [Open manual](http://127.0.0.1:8088/) | Container; [publication and recovery](manual.md) |
+| Repository monitoring | Scheduled, no web interface | Three LaunchAgents; [runbook](repository-monitoring.md) |
 
-3. For GTD Mind work, open the Codex project `gtd-ai`, connected to `/Users/titocr/code/gtd-ai`. Start a focused task there rather than treating “GTD Mind” as a separate project.
-4. Confirm live state using [Host baseline and inventory](host-baseline.md). Dates in this manual are evidence snapshots, not a live dashboard.
+Loopback links open services on this Mac. They are not remote access URLs.
+The [service inventory](services.md) records ownership, startup behavior and
+retained candidates. Inventory verification: **2026-09-21**. This is a dated
+manual, not a live dashboard; its build date is separate from service verification.
 
-## Current position
+## Find the right procedure
 
-Last verified: **2026-09-04**.
+Use [routine operations](operations.md) for checks, [host recovery](recovery.md)
+when something fails, and [backup coverage](backups.md) before relying on a restore.
+[Outstanding work](outstanding.md) records known gaps.
 
-- OrbStack supplies Docker and Compose and starts at login.
-- The infrastructure manual listens only on `127.0.0.1:8088`.
-- Docker ports are not exposed to the LAN by default.
-- GTD Mind production runs as a Mac-local ARM64 container on `127.0.0.1:3000`. The former
-  LaunchAgent is retained but unloaded, and Tailscale Serve is deliberately disabled.
-- Containerizing an application begins in that application's repository. Production deployment and host integration are completed here only after review.
+The household media platform is a separate host. See the
+[Mac Mini media center](projects/media-center.md) for the host boundary, current
+operating shape and links to its authoritative runbooks.
 
-## Recommended path
-
-1. Read [Concepts and responsibilities](concepts.md).
-2. Follow [Add an application](application-containerization.md).
-3. Use the [Runtime contract](runtime-contract.md) as the application-to-infrastructure handoff.
-4. For the known application, follow the [GTD Mind worked example](projects/gtd-mind-containerization.md).
-5. Use [Routine operations](operations.md) after deployment.
-
-!!! warning
-Do not point a candidate container at production data, replace a live listener, change Tailscale routing, or remove an old service until its backup, health, and rollback procedure have been tested.
+Source and offline instructions live in `/Users/titocr/code/infrastructure`.
+If this website is down, start with `README.md` there. For a new task, read the
+relevant service runbook and inspect its runtime before changing it.

@@ -1,43 +1,38 @@
-# Concepts and responsibilities
+# Responsibilities and conventions
 
-## The names in Codex
-
-| Term | Meaning here | Example |
-| --- | --- | --- |
-| Project | The durable Codex workspace connected to a repository | `gtd-ai` at `/Users/titocr/code/gtd-ai` |
-| Product | The application people use | GTD Mind |
-| Task or chat | One focused conversation inside a project | “Containerize GTD Mind” |
-| Repository | Files and Git history shared by tasks in that project | `/Users/titocr/code/gtd-ai` |
-| Image | An immutable application package built from a Dockerfile | A tested GTD Mind image |
-| Container | A running instance of an image with settings and storage | A candidate GTD Mind service |
-| Compose service | The repeatable definition of a container | Image, ports, volumes, health check |
-
-A task transcript is not the durable project record. Checked-in documentation, configuration, decisions, and Git history are. Different tasks in the same project see the same repository, although worktrees or branches may temporarily isolate their changes.
-
-## Division of responsibility
-
-| Participant | Owns |
+| Owner | Responsibility |
 | --- | --- |
-| Application repository | Dockerfile, build context, startup behavior, application health, internal paths, and application-specific documentation and tests |
-| Infrastructure repository | Host Compose definition, loopback port, persistent host paths, secrets delivery, restart policy, exposure, backup/restore, monitoring, and cutover/rollback record |
-| Human operator | Approving architecture, secrets, data migration, exposure, production cutover, destructive cleanup, and acceptable downtime |
-| Codex task | Inspecting evidence, implementing a bounded change, testing it, documenting exact results, and stopping at approval boundaries |
+| Application repository | Build, startup, health semantics, schema, persistent container paths and application tests |
+| Infrastructure repository | Host deployment, storage mounts, exposure, service operation and recovery documentation |
+| Operator | Authorizing production changes, access changes, data migration and destructive cleanup |
 
-The application project creates the container-capable application. This project decides how that application is safely operated on this Mac Studio.
+The [runtime contract](runtime-contract.md) records the application/host boundary.
+`gtd-ai` is the repository and workspace; GTD Mind is the product. A task is a
+conversation, not the durable operations record.
 
-## Why the handoff exists
+## Shared conventions
 
-Application code should not need to know a host data path, which external port is free, or how Tailscale routes traffic. Infrastructure should not guess the build command, health semantics, migration behavior, or files the application must persist.
+Keep configuration and documentation in Git, and secrets out of Git, images and
+logs. Prefer persistent application data under `/Users/titocr/container-data`;
+record exceptions such as Home Assistant and Options Finder in their runbooks.
+Publish ports on loopback by default and document each broader access decision.
+Use reviewed image identities and deliberate updates, not unattended replacement.
 
-The [runtime contract](runtime-contract.md) records those facts at the boundary. It is a document, not a second implementation.
+Use separate candidate storage and verify backup restoration before migration.
+Scope lifecycle commands to the intended service. Preserve existing work and
+recovery artifacts until their owner and retention requirements are understood.
 
-## The human in the middle
+Proceed within the user's authorized scope. Present the concrete impact of a
+production, access, migration or destructive action when additional authorization
+is needed; routine inspection and isolated preparation do not need repeated gates.
 
-You do not need to relay every status update. You do need to approve choices with consequences. The normal approval points are:
+## What belongs in this manual
 
-1. **Application design:** Does the image, health check, and persistence model make sense?
-2. **Candidate deployment:** May infrastructure build and run an isolated local candidate?
-3. **Production cutover:** May the live listener, routing, and production data change?
-4. **Cleanup:** May the previous deployment or obsolete data be removed?
+Include a detail when it changes how this Mac hosts, starts, exposes, stores,
+backs up or recovers a service. Keep application features, account workflows,
+release chronology, migration design and acceptance reports in the owning project.
+Link to the authoritative procedure instead of copying it into an Infrastructure
+archive. [Application documentation](sources.md) lists those entry points.
 
-You can move the handoff manually with copy and paste, or ask Codex to create and message a task in another project. Either way, the checked-in runtime contract is the durable source of truth.
+Runtime evidence outranks stale prose. Record the date of host checks and update
+facts after reconciling a difference; a site rebuild is not service verification.

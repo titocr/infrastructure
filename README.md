@@ -1,41 +1,45 @@
 # Mac Studio infrastructure
 
-Repository-owned configuration and operating notes for containerized applications on the Mac Studio.
+Hardware inventory, workloads and operating procedures for the Mac Studio M2 Max.
+The [manual](http://127.0.0.1:8088/) is built from [docs/index.md](docs/index.md).
+Source and service definitions are durable; the website is a generated local copy.
 
-OrbStack provides the Docker engine and Compose tooling. A local-only container builds the Markdown manual with MkDocs and serves the generated site with Nginx. It is not exposed to the LAN or internet.
+## Read without the website
 
-## Prerequisites
+- [Hardware and capacity](docs/host-baseline.md)
+- [Services and ownership](docs/services.md)
+- [Host recovery](docs/recovery.md)
+- [Deployment and recovery reference](docs/deployment-reference.md)
+- [Backup coverage](docs/backups.md)
+- [Outstanding work](docs/outstanding.md)
 
-- Apple Silicon Mac Studio
-- Homebrew
-- OrbStack configured to start at login
-
-## Infrastructure Guide
-
-The manual is available on the Mac Studio at [http://127.0.0.1:8088/](http://127.0.0.1:8088/). Its Markdown source is under [`docs/`](docs/index.md); `mkdocs.yml` defines the navigation.
-
-Copy `.env.example` to `.env` only to change the default port. Build and start it with:
-
-```sh
-docker compose config
-docker compose up --build -d
-docker compose ps
-curl --fail --show-error http://127.0.0.1:8088/
-```
-
-Stop the service without deleting its Compose definition:
+If the website is down, open this checkout at `/Users/titocr/code/infrastructure`.
+Confirm OrbStack is running, then inspect only the guide:
 
 ```sh
-docker compose down
+docker compose -f compose.yaml ps
+docker compose -f compose.yaml logs --tail 100 infrastructure-guide
 ```
 
-See [Routine operations](docs/operations.md) for updates, verification, recovery, and troubleshooting.
+If stopped, run `docker compose -f compose.yaml start infrastructure-guide`.
+If missing or stale, publish from the reviewed source:
 
-## Conventions
+```sh
+python3 scripts/publish-manual.py
+```
 
-- Compose configuration and documentation belong in Git.
-- Secrets belong in an ignored `.env` file or a dedicated secret store, never in Git.
-- Stateful application data belongs under `/Users/titocr/container-data/<service>`, not in this checkout.
-- Host ports default to `127.0.0.1`; broader exposure must be an explicit, documented decision.
-- Images are pinned to tested digests. Updates are reviewed and verified before the digest changes.
-- Automatic container replacement is disabled unless a service receives an explicit, documented exception.
+Requires Git, Python 3.10+, Docker/Compose from OrbStack, and network access for
+uncached build dependencies. The publisher builds and recreates only the guide,
+checks metadata and preserves the previous image for recovery. It does not commit
+or push. Verify freshness without changes:
+
+```sh
+python3 scripts/publish-manual.py --check
+```
+
+See [manual operation](docs/manual.md) for provenance, custom ports and rollback.
+Plain `docker compose ps` here covers only the guide; use the service runbooks for
+application-specific commands. Do not recreate GTD without its active overlays.
+
+Keep secrets outside Git and build contexts. See [responsibilities](docs/concepts.md)
+and the [runtime contract](docs/runtime-contract.md) before adding a service.

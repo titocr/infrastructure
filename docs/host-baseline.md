@@ -1,77 +1,73 @@
-# Host baseline and inventory
+# Hardware and capacity
 
-This page records a verified snapshot. Re-run the checks before a deployment or capacity decision.
+Verified on **2026-09-21** using macOS hardware reports, Docker and OrbStack
+configuration. No serial numbers or unique hardware identifiers are recorded.
 
-## Host baseline
+## Physical host
 
-Last verified: **2026-09-04**.
+| Item | Verified specification |
+| --- | --- |
+| Computer | Mac Studio, model Mac14,13 |
+| Chip / architecture | Apple M2 Max / arm64 |
+| CPU | 12 cores: 8 performance + 4 efficiency |
+| GPU | 30 cores |
+| Unified memory | 32 GB, shared by CPU and GPU |
+| Internal SSD | APPLE SSD AP0512Z; 500.28 GB reported physical capacity |
+| macOS | 26.6.2, build 25G83 |
 
-| Item                     | Verified value            |
-| ------------------------ | ------------------------- |
-| Host                     | `Mac-Studio.attlocal.net` |
-| Architecture             | Apple Silicon `arm64`     |
-| macOS                    | 26.6.2 (build 25G83)      |
-| OrbStack                 | 2.2.3                     |
-| Docker engine/client     | 29.4.0                    |
-| Docker Compose           | 5.1.2                     |
-| OrbStack at login        | Enabled                   |
-| Docker LAN port exposure | Disabled                  |
-| Kubernetes               | Disabled                  |
-| OrbStack allocation      | 12 CPUs, 16 GiB memory    |
+The SSD capacity above is the physical device report, not available application
+space. APFS volumes share container capacity; do not add their free-space figures.
 
-OrbStack settings describe an upper allocation, not a promise that every service may consume it. Review CPU history, memory pressure, free disk space, backup freshness, and application-specific needs before adding a significant workload.
+## Container runtime
 
-## Managed services
+| Item | Verified value |
+| --- | --- |
+| Runtime | OrbStack 2.2.3 |
+| Docker client / engine | 29.4.0 / 29.4.0 |
+| Docker Compose | 5.1.2 |
+| OrbStack allocation | Up to 12 CPUs and 16 GiB RAM |
+| Start at login | Enabled |
+| Docker LAN port exposure | Disabled in OrbStack settings |
+| Kubernetes | Disabled |
+| Pause in sleep | Enabled |
 
-| Service               | Source                     | Listener         | Data                 | Exposure        | State at verification |
-| --------------------- | -------------------------- | ---------------- | -------------------- | --------------- | --------------------- |
-| Infrastructure manual | This repository            | `127.0.0.1:8088` | None                 | Mac Studio only | Healthy               |
-| GTD Mind production   | `gtd-ai` at `edeee2ab870a` | `127.0.0.1:3000` | Authoritative SQLite | Mac Studio only | Healthy               |
+The 16 GiB runtime allocation is a configured ceiling, not the Mac's total memory
+or reserved capacity for each service. macOS, desktop tools, builds and containers
+share the machine. Sleep may interrupt service availability. Login startup is not
+a guarantee of availability before the user logs in.
 
-The tested GTD Mind candidate is stopped but its data and image are retained. See its
-[container operations](projects/gtd-mind-runtime.md).
+Loopback publication does not prove strict container isolation: OrbStack direct
+container access remains possible. [OSCAR](projects/cpap-monitor-runtime.md)
+documents its accepted access limitations. Options Finder is a native LAN listener
+and is not governed by Docker's LAN setting.
 
-## Host conventions
+## Capacity snapshot
 
-### OSCAR diagnostic record
+On **2026-09-21**, `df -h /System/Volumes/Data` reported a 460 GiB filesystem,
+245 GiB used and 194 GiB available. These are observations, not current free space.
+Recheck before large builds, imports, backups or model downloads.
 
-The current OSCAR candidate uses ordinary bridge networking with authenticated
-browser access published on `127.0.0.1:8089`. Its standard storage now contains
-real health data alongside a separate disposable test profile; do not reset or
-delete the whole config/card directories. It uses manual startup; no public route
-was added. See [OSCAR operations](projects/cpap-monitor-runtime.md).
+```sh
+df -h /System/Volumes/Data
+docker system df
+docker stats --no-stream
+```
 
-On 2026-09-19, `cpap-monitor-candidate` ran briefly with network none and no
-published ports, then stopped after startup hardening mismatches. No OSCAR host
-relay or production service was enabled. The stopped candidate and private empty
-state are retained. See the [diagnostic record](projects/cpap-monitor-diagnostic-20260919.md).
+Use Activity Monitor for memory pressure and CPU history. Do not infer headroom
+from the configured runtime maximum or run global Docker cleanup to reclaim space.
 
-### General conventions
-
-- Bind published ports to `127.0.0.1` unless broader exposure is explicitly approved and documented.
-- Put stateful application data under `/Users/titocr/container-data/<service>`.
-- Keep configuration and documentation in Git.
-- Keep secrets out of Git and images. Document their source and required permissions, not their values.
-- Pin tested base images to digests and review updates.
-- Do not enable automatic container replacement by default.
-- Give candidates distinct ports and data paths; never “test” against the only production copy.
-
-## Verification commands
+## Refresh the baseline
 
 ```sh
 sw_vers
 uname -m
+system_profiler SPHardwareDataType SPDisplaysDataType SPNVMeDataType
 orb version
+orb config list
 docker version
 docker compose version
-docker compose ps
-docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}\t{{.Status}}'
 ```
 
-Check the manual directly:
-
-```sh
-curl --fail --show-error http://127.0.0.1:8088/
-```
-
-If these results differ materially, update this page in the same change that adopts the new baseline.
+Hardware reports can include serial numbers; transcribe only the fields above.
+Update the verification date only for facts actually checked. The [inventory](services.md)
+covers workloads; [recovery](recovery.md) covers restart behavior.

@@ -19,7 +19,8 @@ docker compose logs --tail=100 infrastructure-guide
 curl --verbose http://127.0.0.1:8088/
 ```
 
-If stopped, run `docker compose up -d infrastructure-guide`. If unhealthy, read the first build or runtime error rather than repeatedly restarting it.
+If stopped, run `docker compose start infrastructure-guide`. If missing or stale,
+run `python3 scripts/publish-manual.py`. If unhealthy, read the first build or runtime error rather than repeatedly restarting it.
 
 ## Port 8088 is occupied
 
@@ -34,7 +35,7 @@ If it is an intended service, create `.env` from `.env.example`, choose a free l
 ## The documentation build fails
 
 ```sh
-docker compose build infrastructure-guide
+python3 scripts/publish-manual.py
 ```
 
 MkDocs strict mode reports the source page and problem. Correct navigation, links, Markdown, or configuration in the repository; do not edit generated HTML inside a container.
@@ -55,6 +56,16 @@ git diff
 ```
 
 Treat unknown changes as user work. Determine their owner and purpose; do not discard them. Stage only files belonging to the current change.
+
+## Website differs from source
+
+```sh
+python3 scripts/publish-manual.py --check
+```
+
+A mismatch means the served revision or build inputs differ. Review source, then
+use `python3 scripts/publish-manual.py`. A recent build still does not verify
+service facts; check those separately.
 
 ## Recorded facts appear stale
 

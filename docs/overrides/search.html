@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Search the manual</h1>
+<label for="mkdocs-search-query">Search terms</label>
+<input id="mkdocs-search-query" type="search" placeholder="Type to search">
+<div id="mkdocs-search-results" aria-live="polite" aria-atomic="false" data-no-results-text="No matching pages."><p>Loading search…</p></div>
+<noscript><p>Search needs JavaScript. All pages are available through the navigation.</p></noscript>
+{% endblock %}
+{% block scripts %}
+<script>var base_url = {{ base_url|tojson }};</script>
+<script src="{{ ('search-' ~ config.extra.manual_build.source_sha256 ~ '/main.js')|url }}"></script>
+{% endblock %}

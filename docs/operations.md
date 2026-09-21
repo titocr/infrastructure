@@ -1,86 +1,36 @@
 # Routine operations
 
-Run commands from `/Users/titocr/code/infrastructure` unless a section says otherwise.
-
-## Read current state
+## Inspect the whole host
 
 ```sh
-git status --short
-docker compose config
-docker compose ps
-docker compose images
+docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}\t{{.Status}}'
+docker stats --no-stream
+df -h /System/Volumes/Data
+launchctl print gui/$(id -u)/com.titocr.options-finder
+launchctl print gui/$(id -u)/com.titocr.repository-monitor.scan
+launchctl print-disabled gui/$(id -u)
 ```
 
-The Git worktree should be clean during ordinary operation. A dirty tree means configuration or documentation may not match the recorded revision.
+These checks have different meanings: Docker health is service-defined, a running
+process may still fail a user flow, and scheduled jobs may be idle. Compare with
+the dated [inventory](services.md), not an assumption that every retained job runs.
 
-Repository hygiene monitoring is separate from application health monitoring, backups, and CI. See [Repository hygiene monitoring](repository-monitoring.md) for its Studio-local Git checks and Discord alerts.
+## Inspect one Compose project
 
-## Build and update this manual
+From `/Users/titocr/code/infrastructure`, plain `docker compose ps` selects the
+manual's default Compose project only. It does not inventory GTD, OSCAR or Home
+Assistant. Use each [service runbook](services.md) for the right file, private
+settings, overlays and directory. Avoid printing rendered application environment
+configuration because it can expose secrets.
 
-Edit the Markdown under `docs/`, then run:
+## Change and verify
 
-```sh
-docker compose build infrastructure-guide
-docker compose up -d infrastructure-guide
-docker compose ps
-curl --fail --show-error http://127.0.0.1:8088/
-```
+Before a service update, establish the exact image/configuration, consistent backup,
+rollback constraints and expected interruption. Use the owning guarded workflow.
+Afterward verify readiness, authentication, a real user flow and persistent state as
+appropriate. Update the runbook's facts and evidence date in the same change.
 
-The build runs `mkdocs build --strict`; broken internal links, invalid navigation, or documentation warnings fail the image build. Commit the source, not generated HTML.
-
-## Logs, restart, and recovery
-
-```sh
-docker compose logs --tail=100 infrastructure-guide
-docker compose restart infrastructure-guide
-docker compose ps
-curl --fail --show-error http://127.0.0.1:8088/
-```
-
-The service uses `restart: unless-stopped`. OrbStack is configured to start at login. After a host restart, confirm OrbStack is running and repeat the state and health checks.
-
-Stop and start without removing the service:
-
-```sh
-docker compose stop infrastructure-guide
-docker compose start infrastructure-guide
-```
-
-Remove only the running Compose resources, while retaining source and the local image:
-
-```sh
-docker compose down
-```
-
-Recreate them with `docker compose up -d`.
-
-## Safe image updates
-
-Base images are digest-pinned in `Dockerfile.guide`, and MkDocs is version-pinned in `requirements-docs.txt`. To update:
-
-1. Identify the intended upstream release and digest.
-2. Change one dependency deliberately.
-3. Rebuild and verify health, navigation, logs, and restart.
-4. Review and commit the exact source change.
-
-Do not use an unattended updater for this service. Its Watchtower label is intentionally disabled.
-
-## Operating an application service
-
-Every added application needs a short runbook containing:
-
-- source repository and tested commit;
-- Compose service and image identity;
-- local health and user endpoint;
-- persistent host and container paths;
-- secret source without secret values;
-- backup command, resulting artifact, integrity check, and restore test;
-- start, stop, restart, update, and log commands;
-- exposure route and authentication boundary;
-- migration gate;
-- rollback trigger and exact procedure; and
-- last verification date.
-
-Before an update, confirm a clean infrastructure repository, current backup, free disk space, current health, and a known rollback image/configuration. Afterward, check application health, a real user flow, logs, restart, persistence, and Git cleanliness.
-
-Documentation is part of the operation. Update the inventory, runtime contract reference, verification date, and changed commands in the same commit as the service definition.
+Use [manual publication](manual.md) for documentation changes. Git status records
+source changes; build metadata identifies what the website actually serves.
+Repository hygiene alerts are [separate](repository-monitoring.md) from application
+health, backups and CI. Recovery starts with [host recovery](recovery.md).

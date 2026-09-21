@@ -1,0 +1,7 @@
+<footer>
+  <hr/>
+  <p>Source revision: <code>{{ config.extra.manual_build.source_revision }}</code>{% if config.extra.manual_build.source_modified %} + local changes{% endif %}<br/>
+  Built: {{ config.extra.manual_build.built_at_utc }}.<br/>
+  <a href="{{ base_url }}/build-info.json">Build metadata</a> identifies this website build, not service verification.</p>
+  <p>Built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
+</footer>
