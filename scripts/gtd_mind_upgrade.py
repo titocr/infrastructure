@@ -350,7 +350,14 @@ class Upgrade:
         self.assert_direct_denied()
         if fingerprint(self.db) != record['schema']:
             raise RuntimeError('Production schema changed unexpectedly')
-        if fresh_sync and record['sync_configured']:
+        polling_paused = False
+        if fresh_sync:
+            expected = dict(line.split('=', 1) for line in self.env_file.read_text().splitlines() if '=' in line and not line.startswith('#'))
+            actual = dict(item.split('=', 1) for item in self.inspect()['Config']['Env'])
+            polling_paused = expected.get('TODOIST_POLLING_PAUSED') == 'true'
+            if (actual.get('TODOIST_POLLING_PAUSED') == 'true') != polling_paused:
+                raise RuntimeError('Running polling mode differs from reviewed configuration')
+        if fresh_sync and record['sync_configured'] and not polling_paused:
             deadline = time.monotonic() + 360
             print('Waiting for the first successful Todoist poll from the new container...', flush=True)
             started = self.inspect()['State']['StartedAt'][:19]
