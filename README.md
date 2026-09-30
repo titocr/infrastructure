@@ -8,6 +8,7 @@ Source and service definitions are durable; the website is a generated local cop
 
 - [Hardware and capacity](docs/host-baseline.md)
 - [Services and ownership](docs/services.md)
+- [Shared Discord notifications](docs/notifications.md)
 - [Host recovery](docs/recovery.md)
 - [Deployment and recovery reference](docs/deployment-reference.md)
 - [Backup coverage](docs/backups.md)

@@ -24,6 +24,7 @@ nav:
       - This manual: manual.md
       - Repository monitoring: repository-monitoring.md
   - Operations and recovery:
+      - Shared notifications: notifications.md
       - Routine checks: operations.md
       - Host recovery: recovery.md
       - Backup coverage: backups.md
