@@ -135,3 +135,37 @@ a changed inventory. Use the application's current retention requirements and a
 reviewed configuration. This is not general disk cleanup; live data, recovery
 state and retention records must remain protected. Coverage and scheduling gaps
 are tracked under [outstanding host work](outstanding.md).
+
+## Conversational review schema migration
+
+The `conversational-review-v1` profile in `scripts/gtd_mind_review_migration.py`
+updates the already deployed workspace model. It preserves the existing protected
+production environment, including enabled MCP and the external erasure register.
+It is separate from initial delegated-capture and initial workspace migrations.
+
+The review JSON must identify the exact previous and published candidate
+revisions, SHA256 of every changed committed migration/snapshot/journal file,
+`profile: "conversational-review-v1"`, and the SHA256 of the unchanged protected
+production environment as `target_env_sha256`. Never include environment contents
+or personal records in the review or Git.
+
+With the owner's separate private-copy rehearsal and migration authorization,
+run `scripts/gtd_mind_migrate.py REVISION --review PRIVATE_REVIEW_JSON
+--approve-private-copy` for rehearsal; add `--apply` for guarded production
+migration. Application publication and required repository/browser verification
+must precede it. The profile rehearses a single immutable private snapshot with
+network disabled, verifies original values and exact reviewed guard replacements,
+restarts the candidate and verifies restoration with the matching prior image.
+
+Apply closes ingress, pauses MCP/polling, stops the writer and takes a fresh
+backup. The offline application `review-migrate` command runs committed migrations,
+checks original-table preservation and ownership guards, and reconciles the
+separately mounted erasure register. The candidate remains quarantined until
+verification succeeds. Resume explicitly with `scripts/gtd_mind_migrate.py --resume
+PRIVATE_RECORD_JSON`; it restores the existing configuration and verifies the
+owner session, UI, candidate schema and a fresh read-only provider poll.
+
+Before resumption, use only guarded matching-image/backup restoration. After
+writes resume, preserve current data and use forward recovery. Retain protected
+backup/recovery records under the existing recovery retention policy. Do not
+expand OAuth grants automatically; ChatGPT review consent is a separate step.

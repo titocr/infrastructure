@@ -13,6 +13,7 @@ import sqlite3
 import tempfile
 import uuid
 import gtd_mind_multi_user as multi_user
+import gtd_mind_review_migration as review_migration
 from gtd_mind_upgrade import Upgrade, backup, fingerprint, database, run, write_record, check_app
 
 
@@ -39,13 +40,16 @@ class MigrationUpgrade(Upgrade):
         super().__init__(app, root)
         self.review = review
 
+    def profile(self):
+        return {multi_user.PROFILE: multi_user, review_migration.PROFILE: review_migration}.get(self.review.get("profile"))
+
     def validate_migrations(self, old_revision, revision):
         validate_review(self.app, old_revision, revision, self.review)
 
     def rehearse(self, image, directory, record):
-        if self.review.get('profile') == multi_user.PROFILE:
-            multi_user.validate_environment(self)
-            return multi_user.rehearse(self, image, directory, record)
+        if self.profile():
+            self.profile().validate_environment(self)
+            return self.profile().rehearse(self, image, directory, record)
         state = directory / 'candidate'
         state.mkdir(mode=0o700)
         copy = state / 'gtd-ai.sqlite'
@@ -93,9 +97,9 @@ class MigrationUpgrade(Upgrade):
             run('docker', 'rm', '-f', name)
 
     def apply(self, record, path):
-        profile = self.review.get('profile') == multi_user.PROFILE
+        profile = self.profile()
         if profile:
-            multi_user.validate_environment(self)
+            profile.validate_environment(self)
         elif self.target_env.resolve() != self.env_file.resolve():
             raise RuntimeError('Perform configuration transitions separately from schema migrations')
         self.auth_environment(self.target_env)
@@ -106,7 +110,7 @@ class MigrationUpgrade(Upgrade):
         saved_env = path.parent / 'previous.env'
         shutil.copyfile(original_env, saved_env)
         saved_env.chmod(0o600)
-        if profile:
+        if profile is multi_user:
             candidate_env = path.parent / 'candidate.env'
             multi_user.private_copy(self.target_env, candidate_env)
             record['candidate_env'] = str(candidate_env)
@@ -126,7 +130,7 @@ class MigrationUpgrade(Upgrade):
             record['backup'] = str(saved)
             write_record(path, record)
             if profile:
-                multi_user.migrate_closed(self, record, path)
+                profile.migrate_closed(self, record, path)
             self.env_file = paused
             self.switch(record['image'])
             self.verify({**record, 'schema': record['candidate_schema']}, record['image'])
@@ -228,7 +232,7 @@ def main():
     os.umask(0o077)
     root = Path('/Users/titocr/container-data/gtd-mind')
     review = json.loads(args.review.read_text()) if args.review else {}
-    if review.get('profile') == multi_user.PROFILE and not args.approve_private_copy:
+    if review.get('profile') in (multi_user.PROFILE, review_migration.PROFILE) and not args.approve_private_copy:
         parser.error('This profile reads a private production copy; separate approval and --approve-private-copy are required')
     upgrade = MigrationUpgrade(args.app_repo, root, review)
     with (root / 'upgrade.lock').open('a') as lock:

@@ -82,3 +82,26 @@ class McpLayoutTest(unittest.TestCase):
         current['HostConfig']['PortBindings']['3001/tcp'][0]['HostIp'] = '127.0.0.1'
         current['Mounts'][1]['RW'] = True
         with self.assertRaisesRegex(RuntimeError, 'secret mount'): upgrade.assert_runtime_layout(current)
+
+class ReviewMigrationProfileTest(unittest.TestCase):
+    def test_profile_is_explicit_and_does_not_reuse_initial_owner_migration(self):
+        import gtd_mind_review_migration as review
+        engine = migration.MigrationUpgrade(Path('/tmp/app'), Path('/tmp/review-profile'), {'profile': review.PROFILE})
+        self.assertIs(engine.profile(), review)
+        engine.review = {}
+        self.assertIsNone(engine.profile())
+
+    def test_review_profile_refuses_configuration_transition_and_digest_drift(self):
+        import hashlib
+        import gtd_mind_review_migration as review
+        with tempfile.TemporaryDirectory() as directory:
+            engine = migration.MigrationUpgrade(Path('/tmp/app'), Path(directory), {})
+            engine.env_file.parent.mkdir(parents=True)
+            engine.env_file.write_text('ERASURE_REGISTER_PATH=/recovery/erasure.sqlite\nMCP_ENABLED=true\n')
+            engine.env_file.chmod(0o600)
+            engine.review = {'target_env_sha256': hashlib.sha256(engine.env_file.read_bytes()).hexdigest()}
+            with patch.object(engine, 'auth_environment'):
+                review.validate_environment(engine)
+                engine.env_file.write_text('ERASURE_REGISTER_PATH=/recovery/erasure.sqlite\nMCP_ENABLED=false\n')
+                with self.assertRaisesRegex(RuntimeError, 'differs'):
+                    review.validate_environment(engine)
