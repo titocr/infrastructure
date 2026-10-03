@@ -44,3 +44,22 @@ application-specific commands. Do not recreate GTD without its active overlays.
 
 Keep secrets outside Git and build contexts. See [responsibilities](docs/concepts.md)
 and the [runtime contract](docs/runtime-contract.md) before adding a service.
+
+## Validation
+
+Pushes and pull requests run `.github/workflows/validate.yml` on a GitHub-hosted
+macOS runner with Python 3.14 and Node 24. macOS is required for the repository
+monitor's LaunchAgent plist validation. To run the same checks locally, install
+the documentation dependencies in a virtual environment, then run:
+
+```sh
+python -m pip install --requirement requirements-docs.txt
+GTD_UPGRADE_LIVE_TEST=0 python -m unittest discover -s tests -p 'test_*.py'
+node --test tests/cpap-relay.test.mjs
+python -m mkdocs build --strict
+```
+
+CI requires no configured secrets and grants only read access to repository
+contents. The live Docker upgrade rehearsal remains disabled; ordinary tests use
+temporary fixtures and mocked host operations. The manual build includes the
+generated local-link and anchor checks.
