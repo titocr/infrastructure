@@ -342,7 +342,7 @@ class Upgrade:
         run('docker', 'compose', *compose_args, '--profile', 'production',
             'up', '-d', '--no-deps', '--force-recreate', 'production', env=env)
 
-    def verify(self, record, image, fresh_sync=False):
+    def verify(self, record, image, check_polling_mode=False):
         self.assert_runtime_layout(self.inspect())
         if self.inspect()['Image'] != self.image_id(image):
             raise RuntimeError('Running image differs from selected immutable image')
@@ -350,24 +350,12 @@ class Upgrade:
         self.assert_direct_denied()
         if fingerprint(self.db) != record['schema']:
             raise RuntimeError('Production schema changed unexpectedly')
-        polling_paused = False
-        if fresh_sync:
+        if check_polling_mode:
             expected = dict(line.split('=', 1) for line in self.env_file.read_text().splitlines() if '=' in line and not line.startswith('#'))
             actual = dict(item.split('=', 1) for item in self.inspect()['Config']['Env'])
             polling_paused = expected.get('TODOIST_POLLING_PAUSED') == 'true'
             if (actual.get('TODOIST_POLLING_PAUSED') == 'true') != polling_paused:
                 raise RuntimeError('Running polling mode differs from reviewed configuration')
-        if fresh_sync and record['sync_configured'] and not polling_paused:
-            deadline = time.monotonic() + 360
-            print('Waiting for the first successful Todoist poll from the new container...', flush=True)
-            started = self.inspect()['State']['StartedAt'][:19]
-            while True:
-                sync = get(self.origin, '/api/sync-health', self.headers())
-                if sync.get('status') == 'healthy' and (sync.get('lastSucceededAt') or '')[:19] >= started:
-                    break
-                if time.monotonic() >= deadline:
-                    raise RuntimeError('No fresh successful Todoist poll within six minutes')
-                time.sleep(3)
 
     def apply(self, record, path):
         self.auth_environment(self.target_env)
@@ -388,7 +376,7 @@ class Upgrade:
                 shutil.copyfile(self.target_env, self.env_file)
                 self.env_file.chmod(0o600)
             self.switch(record['image'])
-            self.verify(record, record['image'], fresh_sync=True)
+            self.verify(record, record['image'], check_polling_mode=True)
             record['status'] = 'succeeded'
             write_record(path, record)
         except BaseException:

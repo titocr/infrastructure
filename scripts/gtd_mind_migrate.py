@@ -208,7 +208,7 @@ class MigrationUpgrade(Upgrade):
                     raise RuntimeError('Reviewed candidate configuration changed')
                 multi_user.private_copy(candidate, self.env_file)
             self.switch(record['image'])
-            self.verify({**record, 'schema': record['candidate_schema']}, record['image'], fresh_sync=True)
+            self.verify({**record, 'schema': record['candidate_schema']}, record['image'], check_polling_mode=True)
             if record.get('connector_was_running'):
                 run('docker', 'start', 'gtd-mind-cloudflared')
             record.update(status='succeeded', phase='active')

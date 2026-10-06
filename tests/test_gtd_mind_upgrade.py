@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 import importlib.util
 import json
 from pathlib import Path
@@ -39,8 +40,51 @@ class UpgradeTest(unittest.TestCase):
         self.assertEqual(upgrade.fingerprint(Path(record['backup'])), record['schema'])
         self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
 
+    def verification_mocks(self, paused=False):
+        info = {'Image': 'exact-image', 'Config': {'Env': [
+            'TODOIST_POLLING_PAUSED=' + str(paused).lower()]}}
+        return (
+            patch.object(self.engine, 'inspect', return_value=info),
+            patch.object(self.engine, 'assert_runtime_layout'),
+            patch.object(self.engine, 'image_id', return_value='exact-image'),
+            patch.object(self.engine, 'runtime_mode', return_value='local'),
+            patch.object(upgrade, 'check_app'),
+            patch.object(self.engine, 'assert_direct_denied'),
+            patch.object(upgrade, 'get', side_effect=RuntimeError('Todoist unavailable')),
+            patch.object(upgrade.time, 'sleep', side_effect=AssertionError('Must not wait for polling')),
+        )
+
+    def test_verification_does_not_contact_or_wait_for_todoist(self):
+        for paused in (False, True):
+            with self.subTest(paused=paused):
+                self.engine.env_file.write_text('TODOIST_POLLING_PAUSED=' + str(paused).lower() + '\n')
+                self.record['sync_configured'] = True
+                mocks = self.verification_mocks(paused)
+                with ExitStack() as stack:
+                    handles = [stack.enter_context(mock) for mock in mocks]
+                    self.engine.verify(self.record, 'new', check_polling_mode=True)
+                    handles[4].assert_called_once()
+                    handles[5].assert_called_once()
+                    handles[6].assert_not_called()
+                    handles[7].assert_not_called()
+
+    def test_polling_configuration_mismatch_still_fails(self):
+        self.engine.env_file.write_text('TODOIST_POLLING_PAUSED=true\n')
+        with ExitStack() as stack:
+            for mock in self.verification_mocks(paused=False):
+                stack.enter_context(mock)
+            with self.assertRaisesRegex(RuntimeError, 'polling mode differs'):
+                self.engine.verify(self.record, 'new', check_polling_mode=True)
+
+    def test_application_health_failure_still_fails_verification(self):
+        with ExitStack() as stack:
+            handles = [stack.enter_context(mock) for mock in self.verification_mocks()]
+            handles[4].side_effect = RuntimeError('Application unhealthy')
+            with self.assertRaisesRegex(RuntimeError, 'Application unhealthy'):
+                self.engine.verify(self.record, 'new', check_polling_mode=True)
+
     def test_failure_rolls_back_image_without_discarding_new_writes(self):
-        def verify(record, image, fresh_sync=False):
+        def verify(record, image, check_polling_mode=False):
             if image == 'new':
                 with sqlite3.connect(self.engine.db) as db:
                     db.execute('INSERT INTO work_items VALUES(2,"new write")')

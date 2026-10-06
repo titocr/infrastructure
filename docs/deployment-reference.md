@@ -58,6 +58,11 @@ revision and complete the application's release checks. The host entry points ar
 | `npm run release:container` | Builds and rehearses a private production-data copy; retains local artifacts, but does not replace production |
 | `npm run release:container -- --apply` | Rehearses, then stops the writer, backs up and replaces production; requires deployment authorization |
 
+Release completion verifies application readiness, owner session/UI, schema and
+configured polling mode. It does not wait for a fresh Todoist poll or require
+provider availability. Read-only polling continues independently; inspect its
+health separately when needed.
+
 Neither command is a read-only status check. The wrapper invokes Infrastructure's
 `scripts/gtd_mind_upgrade.py`, which preserves the required overlays and refuses
 migration-file changes. Keep normal configuration unchanged; use
@@ -163,7 +168,8 @@ checks original-table preservation and ownership guards, and reconciles the
 separately mounted erasure register. The candidate remains quarantined until
 verification succeeds. Resume explicitly with `scripts/gtd_mind_migrate.py --resume
 PRIVATE_RECORD_JSON`; it restores the existing configuration and verifies the
-owner session, UI, candidate schema and a fresh read-only provider poll.
+owner session, UI, candidate schema and configured polling mode. Provider polling
+continues independently and does not block deployment completion.
 
 Before resumption, use only guarded matching-image/backup restoration. After
 writes resume, preserve current data and use forward recovery. Retain protected
