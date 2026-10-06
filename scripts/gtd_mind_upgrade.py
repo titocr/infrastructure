@@ -207,8 +207,7 @@ class Upgrade:
         check_app(self.origin, actor, mode=self.runtime_mode(), headers=self.headers())
         self.assert_direct_denied()
         sync = get(self.origin, '/api/sync-health', self.headers())
-        if sync.get('configured') and sync.get('status') != 'healthy':
-            raise RuntimeError('Resolve existing Todoist degradation before deploying')
+        # Provider health is observational; only polling configuration is retained.
         return dict(previous_image=current['Config']['Image'], previous_image_id=current['Image'], previous_revision=old_revision,
                     revision=revision, schema=fingerprint(self.db), actor=actor,
                     sync_configured=sync.get('configured', False))

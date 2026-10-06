@@ -31,6 +31,37 @@ class UpgradeTest(unittest.TestCase):
                            previous_image='old', actor='owner', sync_configured=False)
         self.path = self.root / 'record.json'
 
+    def test_preflight_accepts_degraded_provider_without_weakening_app_checks(self):
+        revision = "a" * 40
+        current = {"Image": "image-id", "Config": {"Image": "old", "Labels": {"org.opencontainers.image.revision": "b" * 40}}}
+        def command(*args, **kwargs):
+            if args[0] == "tailscale":
+                return "{}"
+            if args[0] == "launchctl":
+                return chr(34) + "com.titocr.gtd-ai" + chr(34) + " => disabled"
+            if "status" in args:
+                return ""
+            if "rev-parse" in args:
+                return revision
+            if "branch" in args:
+                return "main"
+            if "ls-remote" in args:
+                return revision + " refs/heads/main"
+            return ""
+        for status in ("healthy", "running", "backing_off", "error", "never_run"):
+            with self.subTest(status=status):
+                def response(origin, endpoint, headers=None):
+                    if endpoint == "/api/session":
+                        return {"actor": {"id": "owner"}}
+                    return {"configured": True, "status": status}
+                with patch.object(upgrade, "run", side_effect=command), patch.object(self.engine, "inspect", return_value=current), patch.object(self.engine, "assert_runtime_layout"), patch.object(self.engine, "validate_migrations") as migrations, patch.object(self.engine, "headers", return_value={}), patch.object(self.engine, "runtime_mode", return_value="local"), patch.object(upgrade, "get", side_effect=response), patch.object(upgrade, "check_app") as app, patch.object(self.engine, "assert_direct_denied") as denied:
+                    record = self.engine.preflight(revision)
+                    self.assertTrue(record["sync_configured"])
+                    self.assertEqual(record["revision"], revision)
+                    app.assert_called_once()
+                    denied.assert_called_once()
+                    migrations.assert_called_once()
+
     def test_success_preserves_database_and_records_verified_backup(self):
         with patch.object(self.engine, 'stop_tunnel'), patch.object(upgrade, 'run'), patch.object(self.engine, 'switch') as switch, patch.object(self.engine, 'verify'):
             self.engine.apply(self.record, self.path)
