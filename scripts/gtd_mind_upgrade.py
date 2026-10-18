@@ -38,8 +38,18 @@ def fingerprint(path):
         if db.execute('PRAGMA foreign_key_check').fetchall():
             raise RuntimeError('Database foreign-key check failed')
         schema = db.execute("SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name").fetchall()
-        migrations = db.execute('SELECT * FROM __drizzle_migrations ORDER BY id').fetchall()
-    return hashlib.sha256(json.dumps([schema, migrations]).encode()).hexdigest()
+        version = db.execute('PRAGMA user_version').fetchone()[0]
+        has_ledger = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='__drizzle_migrations'").fetchone()
+        if version == 0 and has_ledger:
+            # Keep historical fingerprints byte-compatible with existing recovery records.
+            identity = db.execute('SELECT * FROM __drizzle_migrations ORDER BY id').fetchall()
+        elif version == 40001 and not has_ledger:
+            # Exact application bootstrap/ownership validation remains the readiness gate.
+            # This operational fingerprint detects any schema/trigger/header drift.
+            identity = {'clean_user_version': version}
+        else:
+            raise RuntimeError('Unsupported database storage identity')
+    return hashlib.sha256(json.dumps([schema, identity]).encode()).hexdigest()
 
 
 def backup(source, target):
@@ -250,6 +260,12 @@ class Upgrade:
         new_tree = run('git', '-C', str(self.app), 'rev-parse', revision + ':apps/server/drizzle')
         if old_tree != new_tree:
             raise RuntimeError('Migration files differ; schema-changing upgrades are not supported')
+        old_bootstrap = run('git', '-C', str(self.app), 'ls-tree', old_revision, '--',
+                            'apps/server/bootstrap', 'apps/server/src/database/clean-bootstrap-target.json')
+        new_bootstrap = run('git', '-C', str(self.app), 'ls-tree', revision, '--',
+                            'apps/server/bootstrap', 'apps/server/src/database/clean-bootstrap-target.json')
+        if old_bootstrap != new_bootstrap:
+            raise RuntimeError('Bootstrap files differ; schema-changing upgrades are not supported')
     def build(self, revision, directory):
         archive = directory / 'source.tar'
         run('git', '-C', str(self.app), 'archive', '--output', str(archive), revision)
@@ -383,6 +399,8 @@ class Upgrade:
             raise
 
     def rollback(self, record, path):
+        if record.get('profile') == 'clean-baseline-v1':
+            raise RuntimeError('Use the pinned clean-baseline release recovery command for this record')
         # Preserve all current writes. Never restore an old database automatically.
         self.stop_container()
         if fingerprint(self.db) != record['schema']:

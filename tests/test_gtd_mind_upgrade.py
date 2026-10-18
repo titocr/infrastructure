@@ -189,3 +189,46 @@ class AccessUpgradeTest(UpgradeTest):
         with patch.object(self.engine, 'runtime_mode', return_value='cloudflare'), patch.object(upgrade, 'get', return_value={}):
             with self.assertRaisesRegex(RuntimeError, 'bypass'):
                 self.engine.assert_direct_denied()
+
+
+class CleanStorageUpgradeTest(UpgradeTest):
+    def test_historical_fingerprint_keeps_existing_record_encoding(self):
+        import hashlib
+        with sqlite3.connect(self.engine.db) as db:
+            schema = db.execute("SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name").fetchall()
+            ledger = db.execute('SELECT * FROM __drizzle_migrations ORDER BY id').fetchall()
+        self.assertEqual(upgrade.fingerprint(self.engine.db), hashlib.sha256(json.dumps([schema, ledger]).encode()).hexdigest())
+
+    def test_clean_header_without_retired_ledger_supports_backups_and_detects_drift(self):
+        with sqlite3.connect(self.engine.db) as db:
+            db.execute('DROP TABLE __drizzle_migrations')
+            db.execute('PRAGMA user_version=40001')
+        before = upgrade.fingerprint(self.engine.db)
+        target = self.root / 'clean-backup.sqlite'
+        self.assertEqual(upgrade.backup(self.engine.db, target), before)
+        with sqlite3.connect(self.engine.db) as db:
+            db.execute('CREATE INDEX synthetic_changed ON work_items(title)')
+        self.assertNotEqual(upgrade.fingerprint(self.engine.db), before)
+        with sqlite3.connect(self.engine.db) as db:
+            db.execute('PRAGMA user_version=40002')
+        with self.assertRaisesRegex(RuntimeError, 'storage identity'):
+            upgrade.fingerprint(self.engine.db)
+
+    def test_clean_header_with_historical_ledger_is_rejected(self):
+        with sqlite3.connect(self.engine.db) as db:
+            db.execute('PRAGMA user_version=40001')
+        with self.assertRaisesRegex(RuntimeError, 'storage identity'):
+            upgrade.fingerprint(self.engine.db)
+
+    def test_changed_bootstrap_remains_a_schema_change_even_with_same_drizzle_tree(self):
+        with patch.object(upgrade, 'run', side_effect=['same', 'same', 'old bootstrap', 'new bootstrap']):
+            with self.assertRaisesRegex(RuntimeError, 'Bootstrap files differ'):
+                self.engine.validate_migrations('a'*40, 'b'*40)
+        with patch.object(upgrade, 'run', side_effect=['same', 'same', 'same bootstrap', 'same bootstrap']):
+            self.engine.validate_migrations('a'*40, 'b'*40)
+
+    def test_ordinary_recovery_refuses_clean_transition_record_before_stopping(self):
+        with patch.object(self.engine, 'stop_container') as stop:
+            with self.assertRaisesRegex(RuntimeError, 'clean-baseline'):
+                self.engine.rollback({'profile': 'clean-baseline-v1'}, self.path)
+        stop.assert_not_called()

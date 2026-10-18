@@ -49,3 +49,19 @@ release as a shortcut. Application release history and data-migration decisions
 belong in `gtd-ai`.
 
 For tunnel failures, see [GTD access](gtd-mind-access.md).
+
+## Clean-baseline release tooling (local preparation)
+
+Application clean-baseline transitions use their own checksum-pinned release and
+recovery procedure; this note does not authorize a live transition. The ordinary
+updater still rejects changed Drizzle migrations or clean-bootstrap artifacts.
+It can fingerprint a clean `user_version=40001` database without the retired ledger
+for subsequent schema-preserving backup/rehearsal/recovery. Historical ledger
+fingerprints retain their original encoding so existing recovery records remain
+usable. Unknown headers and mixed clean-header/old-ledger files are refused.
+
+A `clean-baseline-v1` deployment record must be recovered with the application's
+pinned clean release command. Ordinary image rollback refuses those records before
+stopping a container. In-progress records continue to block ordinary deployments.
+See the application's clean-baseline recovery runbook for required approvals and
+current local implementation status. No runtime configuration is changed here.
