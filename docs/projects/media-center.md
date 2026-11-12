@@ -36,6 +36,9 @@ application databases into this infrastructure repository.
 - The Compose project provides Seerr, Sonarr, Radarr, Prowlarr, Jackett, SABnzbd,
   qBittorrent behind Gluetun, books/audiobooks services, operator tools, the private
   Purple Tardis portal and the status dashboard.
+- Chaptarr and Audiobookshelf share the Mini audiobook library at
+  `/Users/titocr/media-server/data/media/books/audiobooks`; Chaptarr eBooks
+  remain staged separately for import into the Calibre-owned library.
 - Per-user LaunchAgents mount/check the data volume, start the container stack in
   bounded phases, run monitoring and status history, update media DNS, perform the
   nightly backup, and maintain native Caddy and Jellyfin.
